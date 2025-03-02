@@ -1,11 +1,13 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>speech_recognition</name>
-  <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="jerryzhang7@126.com">jay</maintainer>
+  <name>speech_recognition_baidu</name>
+  <version>0.1.0</version>
+  <description>ROS2功能包，使用百度语音识别API进行语音识别</description>
+  <maintainer email="user@todo.todo">user</maintainer>
   <license>TODO: License declaration</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>

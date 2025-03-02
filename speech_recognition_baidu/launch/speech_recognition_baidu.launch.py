@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Launch file for speech recognition system
+Launch file for Baidu speech recognition system
 Launches both audio capture and speech recognition nodes
 """
 
@@ -13,7 +13,7 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
-    """Generate launch description for speech recognition system."""
+    """Generate launch description for Baidu speech recognition system."""
     
     # 声明参数
     audio_ns_arg = DeclareLaunchArgument(
@@ -52,23 +52,17 @@ def generate_launch_description():
         description='Duration of silence to consider end of utterance (in seconds)'
     )
     
-    # 科大讯飞API参数 - 已设置默认值为您提供的API密钥
-    xf_app_id_arg = DeclareLaunchArgument(
-        'xf_app_id',
-        default_value='c0ffa3f9',   # 64bb7d13
-        description='科大讯飞应用ID'
+    # 百度API参数
+    baidu_api_key_arg = DeclareLaunchArgument(
+        'baidu_api_key',
+        default_value='pwPe748UolTnzuxecNcwnOvj',
+        description='百度语音识别API Key'
     )
     
-    xf_api_key_arg = DeclareLaunchArgument(
-        'xf_api_key',
-        default_value='400d056c258a53e030c80d2ee1c081a5',  #75ee9180e28e4de40ecbde29b57a58bc
-        description='科大讯飞API密钥'
-    )
-    
-    xf_api_secret_arg = DeclareLaunchArgument(
-        'xf_api_secret',
-        default_value='MjRkMTFkODQ2MDk1MDA2OTZmNDJiZTUw',  #NmE1MWM5NzZjYWEyM2ExODE1ZmUxNmRj
-        description='科大讯飞API Secret'
+    baidu_secret_key_arg = DeclareLaunchArgument(
+        'baidu_secret_key',
+        default_value='Fm5Ntlb4FaC2bUy3vgsLDCftRasaAFDM',
+        description='百度语音识别Secret Key'
     )
     
     # 网络代理参数
@@ -103,9 +97,9 @@ def generate_launch_description():
     
     # 创建语音识别节点
     speech_recognition_node = Node(
-        package='speech_recognition',
-        executable='speech_recognition_node',
-        name='speech_recognition',
+        package='speech_recognition_baidu',
+        executable='speech_recognition_baidu_node',
+        name='speech_recognition_baidu',
         output='screen',
         parameters=[{
             'language': LaunchConfiguration('language'),
@@ -113,9 +107,8 @@ def generate_launch_description():
             'silence_threshold': LaunchConfiguration('silence_threshold'),
             'min_utterance_length': LaunchConfiguration('min_utterance_length'),
             'silence_duration': LaunchConfiguration('silence_duration'),
-            'xf_app_id': LaunchConfiguration('xf_app_id'),
-            'xf_api_key': LaunchConfiguration('xf_api_key'),
-            'xf_api_secret': LaunchConfiguration('xf_api_secret'),
+            'baidu_api_key': LaunchConfiguration('baidu_api_key'),
+            'baidu_secret_key': LaunchConfiguration('baidu_secret_key'),
             'use_proxy': LaunchConfiguration('use_proxy'),
             'http_proxy': LaunchConfiguration('http_proxy'),
             'https_proxy': LaunchConfiguration('https_proxy'),
@@ -130,9 +123,8 @@ def generate_launch_description():
         silence_threshold_arg,
         min_utterance_length_arg,
         silence_duration_arg,
-        xf_app_id_arg,
-        xf_api_key_arg, 
-        xf_api_secret_arg,
+        baidu_api_key_arg,
+        baidu_secret_key_arg,
         use_proxy_arg,
         http_proxy_arg,
         https_proxy_arg,

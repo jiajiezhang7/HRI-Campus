@@ -2,15 +2,13 @@
 
 """
 Launch file for Baidu speech recognition system
-Launches both audio capture and speech recognition nodes
+Launches speech recognition node only
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     """Generate launch description for Baidu speech recognition system."""
@@ -84,17 +82,6 @@ def generate_launch_description():
         description='HTTPS代理服务器地址 (例如: https://proxy.example.com:8080)'
     )
     
-    # 包含音频捕获launch文件
-    audio_capture_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            PathJoinSubstitution([
-                FindPackageShare('audio_capture'),
-                'launch',
-                'comica_mic_capture.launch.py'
-            ])
-        ])
-    )
-    
     # 创建语音识别节点
     speech_recognition_node = Node(
         package='speech_recognition_baidu',
@@ -128,6 +115,5 @@ def generate_launch_description():
         use_proxy_arg,
         http_proxy_arg,
         https_proxy_arg,
-        audio_capture_launch,
         speech_recognition_node
     ])

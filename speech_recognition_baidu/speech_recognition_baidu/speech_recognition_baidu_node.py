@@ -80,14 +80,7 @@ class SpeechRecognitionBaiduNode(Node):
             10
         )
         
-        # 创建发布者，发布识别出的文本
-        self.text_publisher = self.create_publisher(
-            String,
-            '/recognized_text',
-            10
-        )
-        
-        # 创建新的发布者，发布到/speech_to_text话题
+        # 创建发布者，发布到/speech_to_text话题
         self.speech_to_text_publisher = self.create_publisher(
             String,
             '/speech_to_text',
@@ -327,10 +320,9 @@ class SpeechRecognitionBaiduNode(Node):
                     text = result['result'][0]
                     self.get_logger().info(f"识别成功: {text}")
                     
-                    # 发布识别结果到两个话题
+                    # 发布识别结果
                     msg = String()
                     msg.data = text
-                    self.text_publisher.publish(msg)
                     self.speech_to_text_publisher.publish(msg)
                     self.get_logger().info(f"已发布识别结果: {text}")
                 else:

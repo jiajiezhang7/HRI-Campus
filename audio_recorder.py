@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+# 订阅audio_generated话题，保存为wav音频文件，用于debug
 import rclpy
 from rclpy.node import Node
 from audio_common_msgs.msg import AudioData
@@ -28,10 +28,10 @@ class AudioRecorder(Node):
         # 创建订阅
         self.subscription = self.create_subscription(
             AudioData,
-            '/audio/audio',
+            '/audio_generated',
             self.listener_callback,
             10)
-        self.get_logger().info('音频记录器已启动，正在监听 /audio/audio 话题')
+        self.get_logger().info('音频记录器已启动，正在监听 /audio_generated 话题')
         self.get_logger().info(f'音频格式: {self.channels}声道, {self.sample_width*8}位, {self.sample_rate}Hz')
         
         # 创建保存目录

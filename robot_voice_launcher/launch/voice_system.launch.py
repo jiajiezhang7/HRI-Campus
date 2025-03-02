@@ -6,7 +6,8 @@
 2. speech_recognition_baidu
 3. llm_bytedance
 4. speech_generation_baidu
-5. audio_recorder.py
+5. audio_play_python
+6. audio_recorder.py
 """
 
 import os
@@ -29,6 +30,7 @@ def generate_launch_description():
     speech_recognition_pkg_dir = FindPackageShare('speech_recognition_baidu')
     llm_bytedance_pkg_dir = FindPackageShare('llm_bytedance')
     speech_generation_pkg_dir = FindPackageShare('speech_generation_baidu')
+    audio_play_pkg_dir = FindPackageShare('audio_play_python')
     
     # 麦克风捕获启动文件
     mic_capture_launch = IncludeLaunchDescription(
@@ -64,6 +66,15 @@ def generate_launch_description():
         # launch_arguments={'per': '106'}.items()
     )
     
+    # 音频播放启动文件
+    audio_play_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([audio_play_pkg_dir, 'launch', 'audio_play.launch.py'])
+        ]),
+        # 这里可以添加launch参数覆盖，例如:
+        # launch_arguments={'format': 'mp3'}.items()
+    )
+    
     # 音频录制节点
     audio_recorder_script = os.path.join('/home/jay/microp_ws/src', 'audio_recorder.py')
     audio_recorder_node = ExecuteProcess(
@@ -94,9 +105,15 @@ def generate_launch_description():
         actions=[speech_generation_launch]
     )
     
-    # 8秒后启动音频录制
+    # 7秒后启动音频播放
+    audio_play_timer = TimerAction(
+        period=7.0,
+        actions=[audio_play_launch]
+    )
+    
+    # 9秒后启动音频录制
     recorder_timer = TimerAction(
-        period=8.0,
+        period=9.0,
         actions=[audio_recorder_node]
     )
     
@@ -106,5 +123,6 @@ def generate_launch_description():
         recognition_timer,
         llm_timer,
         speech_gen_timer,
+        audio_play_timer,
         recorder_timer
     ])

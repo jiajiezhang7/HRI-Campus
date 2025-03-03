@@ -21,7 +21,7 @@
 - speech_recognition_baidu
 - llm_bytedance
 - speech_generation_baidu
-
+- sudo apt-get install libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-bad (for audio_capture_filter_node.cpp)
 ### 构建
 
 ```bash

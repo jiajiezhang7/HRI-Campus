@@ -28,10 +28,10 @@ class AudioRecorder(Node):
         # 创建订阅
         self.subscription = self.create_subscription(
             AudioData,
-            '/audio_generated',
+            '/audio/audio',
             self.listener_callback,
             10)
-        self.get_logger().info('音频记录器已启动，正在监听 /audio_generated 话题')
+        self.get_logger().info('音频记录器已启动，正在监听 /audio/audio 话题，用于检测滤波效果')
         self.get_logger().info(f'音频格式: {self.channels}声道, {self.sample_width*8}位, {self.sample_rate}Hz')
         
         # 创建保存目录
@@ -83,7 +83,7 @@ class AudioRecorder(Node):
                         if len(self.audio_buffer) >= 20:
                             samples = struct.unpack(f'<{min(10, len(self.audio_buffer)//2)}h', 
                                                    self.audio_buffer[:min(20, len(self.audio_buffer))])
-                            self.get_logger().info(f'样本值: {samples}')
+                            # self.get_logger().info(f'样本值: {samples}')
                         
                         self.audio_buffer = bytearray()
                 except Exception as e:

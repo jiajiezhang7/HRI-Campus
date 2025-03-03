@@ -2,7 +2,7 @@
 
 """
 主启动文件，按顺序启动：
-1. comica_mic_capture.launch.py
+1. audio_capture_filter.launch.py (带高通滤波器的麦克风捕获)
 2. speech_recognition_baidu
 3. llm_bytedance
 4. speech_generation_baidu
@@ -16,14 +16,29 @@ from launch.actions import (
     IncludeLaunchDescription, 
     ExecuteProcess,
     GroupAction,
-    TimerAction
+    TimerAction,
+    DeclareLaunchArgument
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
 
 def generate_launch_description():
     """生成启动描述，按顺序启动所有语音相关节点"""
+    
+    # 声明是否启用高通滤波器的参数
+    enable_filter_arg = DeclareLaunchArgument(
+        'enable_filter',
+        default_value='true',
+        description='Enable high-pass filter for noise reduction'
+    )
+    
+    # 声明高通滤波器截止频率参数
+    cutoff_frequency_arg = DeclareLaunchArgument(
+        'cutoff_frequency',
+        default_value='100.0',
+        description='Cutoff frequency for high-pass filter in Hz'
+    )
     
     # 查找各个包的路径
     audio_capture_pkg_dir = FindPackageShare('audio_capture')
@@ -32,11 +47,15 @@ def generate_launch_description():
     speech_generation_pkg_dir = FindPackageShare('speech_generation_baidu')
     audio_play_pkg_dir = FindPackageShare('audio_play_python')
     
-    # 麦克风捕获启动文件
+    # 麦克风捕获启动文件（带高通滤波器）
     mic_capture_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            PathJoinSubstitution([audio_capture_pkg_dir, 'launch', 'comica_mic_capture.launch.py'])
-        ])
+            PathJoinSubstitution([audio_capture_pkg_dir, 'launch', 'audio_capture_filter.launch.py'])
+        ]),
+        launch_arguments={
+            'enable_filter': LaunchConfiguration('enable_filter'),
+            'cutoff_frequency': LaunchConfiguration('cutoff_frequency')
+        }.items()
     )
     
     # 语音识别启动文件
@@ -119,6 +138,8 @@ def generate_launch_description():
     
     # 返回启动描述
     return LaunchDescription([
+        enable_filter_arg,
+        cutoff_frequency_arg,
         mic_capture_group,
         recognition_timer,
         llm_timer,

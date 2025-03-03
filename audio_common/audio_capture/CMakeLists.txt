@@ -16,8 +16,11 @@ find_package(audio_common_msgs REQUIRED)
 find_package(diagnostic_updater REQUIRED)
 find_package(PkgConfig)
 pkg_check_modules(GST1.0 gstreamer-1.0 REQUIRED)
+pkg_check_modules(GSTAPP gstreamer-app-1.0 REQUIRED)
+pkg_check_modules(GSTBAD gstreamer-plugins-bad-1.0 REQUIRED)
 find_package(Boost REQUIRED COMPONENTS thread)
 
+# 原始音频捕获节点
 add_library(${PROJECT_NAME} SHARED
   src/audio_capture_node.cpp
 )
@@ -38,7 +41,28 @@ rclcpp_components_register_node(
   EXECUTABLE audio_capture_node
 )
 
-install(TARGETS audio_capture_node ${PROJECT_NAME}
+# 带有高通滤波器的音频捕获节点
+add_library(${PROJECT_NAME}_filter SHARED
+  src/audio_capture_filter_node.cpp
+)
+
+target_include_directories(${PROJECT_NAME}_filter PRIVATE ${Boost_INCLUDE_DIRS} ${GST1.0_INCLUDE_DIRS} ${GSTAPP_INCLUDE_DIRS} ${GSTBAD_INCLUDE_DIRS})
+ament_target_dependencies(${PROJECT_NAME}_filter
+  rclcpp
+  rclcpp_components
+  audio_common_msgs
+  diagnostic_updater
+)
+
+target_link_libraries(${PROJECT_NAME}_filter ${GST1.0_LIBRARIES} ${GSTAPP_LIBRARIES} ${GSTBAD_LIBRARIES} ${Boost_LIBRARIES})
+
+rclcpp_components_register_node(
+  ${PROJECT_NAME}_filter
+  PLUGIN "audio_capture::AudioCaptureFilterNode"
+  EXECUTABLE audio_capture_filter_node
+)
+
+install(TARGETS audio_capture_node audio_capture_filter_node ${PROJECT_NAME} ${PROJECT_NAME}_filter
   LIBRARY DESTINATION lib
   ARCHIVE DESTINATION lib
   RUNTIME DESTINATION bin
@@ -50,6 +74,7 @@ install(DIRECTORY launch
 
 ament_export_libraries(
   ${PROJECT_NAME}
+  ${PROJECT_NAME}_filter
 )
 
 ament_package()

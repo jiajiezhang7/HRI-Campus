@@ -22,7 +22,7 @@ def generate_launch_description():
     
     language_arg = DeclareLaunchArgument(
         'language',
-        default_value='zh-cn',
+        default_value='en_us',
         description='Language for speech recognition (en-us or zh-cn)'
     )
     

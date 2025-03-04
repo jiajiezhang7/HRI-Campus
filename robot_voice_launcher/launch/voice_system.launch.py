@@ -40,6 +40,20 @@ def generate_launch_description():
         description='Cutoff frequency for high-pass filter in Hz'
     )
     
+    # 声明语音识别静音阈值参数
+    silence_threshold_arg = DeclareLaunchArgument(
+        'silence_threshold',
+        default_value='30',
+        description='Threshold for silence detection in speech recognition'
+    )
+    
+    # 声明麦克风静音持续时间参数
+    mute_duration_arg = DeclareLaunchArgument(
+        'mute_duration',
+        default_value='7.0',
+        description='Duration to keep microphone muted after audio playback (seconds)'
+    )
+    
     # 查找各个包的路径
     audio_capture_pkg_dir = FindPackageShare('audio_capture')
     speech_recognition_pkg_dir = FindPackageShare('speech_recognition_baidu')
@@ -63,8 +77,9 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([speech_recognition_pkg_dir, 'launch', 'speech_recognition_baidu.launch.py'])
         ]),
-        # 这里可以添加launch参数覆盖，例如:
-        # launch_arguments={'parameter_name': 'new_value'}.items()
+        launch_arguments={
+            'silence_threshold': LaunchConfiguration('silence_threshold')
+        }.items()
     )
     
     # LLM字节跳动启动
@@ -90,60 +105,74 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([audio_play_pkg_dir, 'launch', 'audio_play.launch.py'])
         ]),
-        # 这里可以添加launch参数覆盖，例如:
-        # launch_arguments={'format': 'mp3'}.items()
+        launch_arguments={
+            'format': 'mp3',
+            'device': 'plughw:1,0'  # 使用Philips SPA2100扬声器
+        }.items()
+    )
+    
+    # 麦克风静音控制节点
+    mic_mute_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'mic_mute.launch.py'])
+        ]),
+        launch_arguments={
+            'mute_duration': LaunchConfiguration('mute_duration')
+        }.items()
     )
     
     # 音频录制节点
-    audio_recorder_script = os.path.join('/home/jay/microp_ws/src', 'audio_recorder.py')
+    audio_recorder_script = os.path.join('/home/agilex03/hri_ws/src', 'audio_recorder.py')
     audio_recorder_node = ExecuteProcess(
         cmd=['python3', audio_recorder_script],
         name='audio_recorder',
         output='screen',
     )
     
-    # 使用TimerAction实现顺序启动
-    # 先启动麦克风捕获
-    mic_capture_group = GroupAction([mic_capture_launch])
-    
-    # 2秒后启动语音识别
-    recognition_timer = TimerAction(
-        period=2.0,
-        actions=[speech_recognition_launch]
-    )
-    
-    # 4秒后启动LLM节点
-    llm_timer = TimerAction(
-        period=4.0,
-        actions=[llm_bytedance_launch]
-    )
-    
-    # 6秒后启动语音合成
-    speech_gen_timer = TimerAction(
-        period=6.0,
-        actions=[speech_generation_launch]
-    )
-    
-    # 7秒后启动音频播放
-    audio_play_timer = TimerAction(
-        period=7.0,
-        actions=[audio_play_launch]
-    )
-    
-    # 9秒后启动音频录制
-    recorder_timer = TimerAction(
-        period=9.0,
-        actions=[audio_recorder_node]
-    )
-    
-    # 返回启动描述
+    # 按顺序启动所有节点
     return LaunchDescription([
+        # 参数
         enable_filter_arg,
         cutoff_frequency_arg,
-        mic_capture_group,
-        recognition_timer,
-        llm_timer,
-        speech_gen_timer,
-        audio_play_timer,
-        recorder_timer
+        silence_threshold_arg,
+        mute_duration_arg,
+        
+        # 节点
+        mic_capture_launch,
+        
+        # 等待1秒后启动语音识别
+        TimerAction(
+            period=1.0,
+            actions=[speech_recognition_launch]
+        ),
+        
+        # 等待2秒后启动LLM
+        TimerAction(
+            period=2.0,
+            actions=[llm_bytedance_launch]
+        ),
+        
+        # 等待3秒后启动语音合成
+        TimerAction(
+            period=3.0,
+            actions=[speech_generation_launch]
+        ),
+        
+        # 等待4秒后启动音频播放
+        TimerAction(
+            period=4.0,
+            actions=[audio_play_launch]
+        ),
+        
+        # 等待4.5秒后启动麦克风静音控制
+        TimerAction(
+            period=4.5,
+            actions=[mic_mute_launch]
+        ),
+        
+        # 等待5秒后启动音频记录器（可选）
+        # TimerAction(
+        #     period=5.0,
+        #     actions=[audio_recorder_node]
+        # )
     ])

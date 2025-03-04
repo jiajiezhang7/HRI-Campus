@@ -17,6 +17,7 @@ from pathlib import Path
 import rclpy
 from rclpy.node import Node
 from audio_common_msgs.msg import AudioData
+from std_msgs.msg import Empty
 
 
 class AudioPlayNode(Node):
@@ -27,26 +28,33 @@ class AudioPlayNode(Node):
         super().__init__('audio_play_node')
         
         # 声明参数
-        self.declare_parameter('format', 'mp3')  # 音频格式，支持mp3、wav等
-        self.declare_parameter('device', '')     # 音频设备，留空使用默认设备
-        self.declare_parameter('channels', 1)    # 声道数
+        self.declare_parameter('format', 'wave')  # 音频格式
         self.declare_parameter('sample_rate', 16000)  # 采样率
+        self.declare_parameter('channels', 2)  # 声道数
+        self.declare_parameter('device', '')  # 音频设备
         
         # 获取参数
         self.format = self.get_parameter('format').value
-        self.device = self.get_parameter('device').value
-        self.channels = self.get_parameter('channels').value
         self.sample_rate = self.get_parameter('sample_rate').value
+        self.channels = self.get_parameter('channels').value
+        self.device = self.get_parameter('device').value
         
-        # 创建临时目录用于存储音频文件
-        self.temp_dir = tempfile.mkdtemp(prefix="audio_play_")
-        self.get_logger().info(f"创建临时目录: {self.temp_dir}")
+        # 创建临时目录
+        self.temp_dir = tempfile.mkdtemp(prefix='audio_play_')
+        self.get_logger().info(f'创建临时目录: {self.temp_dir}')
         
         # 创建订阅者，订阅音频数据
         self.audio_subscription = self.create_subscription(
             AudioData,
             '/audio_generated',
             self.audio_callback,
+            10
+        )
+        
+        # 创建发布者，发布音频播放完成事件
+        self.playback_complete_publisher = self.create_publisher(
+            Empty,
+            '/audio_playback_complete',
             10
         )
         
@@ -136,6 +144,9 @@ class AudioPlayNode(Node):
                             self.get_logger().error(f"错误输出: {stderr.decode('utf-8', errors='replace')}")
                     else:
                         self.get_logger().info(f"音频播放完成: {file_path}")
+                        
+                        # 发布音频播放完成事件
+                        self.playback_complete_publisher.publish(Empty())
                     
                     # 播放完成后删除临时文件
                     try:

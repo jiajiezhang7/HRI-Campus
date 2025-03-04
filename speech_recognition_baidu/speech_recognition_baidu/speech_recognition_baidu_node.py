@@ -20,7 +20,7 @@ import threading
 import struct
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from audio_common_msgs.msg import AudioData
 
 class SpeechRecognitionBaiduNode(Node):
@@ -33,7 +33,7 @@ class SpeechRecognitionBaiduNode(Node):
         # 声明参数
         self.declare_parameter('language', 'zh-cn')  # 默认使用中文
         self.declare_parameter('buffer_size', 32000)  # 音频缓冲区大小
-        self.declare_parameter('silence_threshold', 200)  # 静音阈值
+        self.declare_parameter('silence_threshold',50)  # 静音阈值
         self.declare_parameter('min_utterance_length', 16000)  # 最小语句长度（约0.5秒）
         self.declare_parameter('silence_duration', 1.5)  # 静音持续时间（秒）判定为句子结束
         self.declare_parameter('channels', 2)  # 声道数
@@ -79,6 +79,17 @@ class SpeechRecognitionBaiduNode(Node):
             self.audio_callback,
             10
         )
+        
+        # 创建订阅者，订阅麦克风静音状态
+        self.mute_subscription = self.create_subscription(
+            Bool,
+            '/mic_mute',
+            self.mute_callback,
+            10
+        )
+        
+        # 麦克风状态
+        self.mic_muted = False
         
         # 创建发布者，发布到/speech_to_text话题
         self.speech_to_text_publisher = self.create_publisher(
@@ -132,10 +143,24 @@ class SpeechRecognitionBaiduNode(Node):
             self.get_logger().error(f'音频数据处理错误: {str(e)}')
             return True
     
+    def mute_callback(self, msg):
+        """
+        处理麦克风静音状态消息
+        """
+        self.mic_muted = msg.data
+        if self.mic_muted:
+            self.get_logger().info('麦克风已静音，暂停音频处理')
+        else:
+            self.get_logger().info('麦克风已恢复，继续音频处理')
+    
     def audio_callback(self, msg):
         """
         处理接收到的音频数据，使用VAD检测完整句子
         """
+        # 如果麦克风静音，忽略音频数据
+        if self.mic_muted:
+            return
+            
         # 保存原始数据用于调试
         if hasattr(self, 'raw_file') and self.raw_file:
             self.raw_file.write(bytes(msg.data))

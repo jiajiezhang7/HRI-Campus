@@ -119,6 +119,57 @@ ros2 launch robot_voice_launcher voice_system.launch.py enable_filter:=false
 
 ## 系统依赖
 
+### ROS2基础依赖 (Iron)
+
+- **ROS2核心依赖**:
+  - `rclpy` - Python客户端库
+  - `rclcpp` - C++客户端库（用于audio_capture）
+  - `rclcpp_components` - ROS2组件
+  - `std_msgs` - 标准消息类型
+  - `std_srvs` - 标准服务类型
+  - `launch` - 启动系统
+  - `launch_ros` - ROS2启动系统
+  - `launch_xml` - XML格式启动文件支持
+  - `ament_cmake` - CMake构建工具
+  - `ament_python` - Python构建工具
+  - `rosidl_default_generators` - 消息生成器
+  - `rosidl_default_runtime` - 消息运行时
+
+### 音频相关依赖
+
+- **audio_common相关依赖**:
+  - `audio_common_msgs` - 音频消息类型
+  - `audio_capture` - 音频捕获节点
+  - `audio_play` - 音频播放节点（C++版本）
+  - `sound_play` - 声音播放工具
+
+- **GStreamer相关依赖**:
+  - `libgstreamer1.0-dev`
+  - `libgstreamer-plugins-base1.0-dev`
+  - `libgstreamer-plugins-bad1.0-dev`
+  - `gstreamer1.0`
+  - `gstreamer1.0-alsa`
+  - `gstreamer1.0-plugins-base`
+  - `gstreamer1.0-plugins-good`
+  - `gstreamer1.0-plugins-ugly`
+  - `gstreamer1.0-plugins-bad`
+
+- **其他系统依赖**:
+  - `boost` - C++库
+  - `diagnostic_updater` - 诊断工具
+
+### Python依赖
+
+- **Python库依赖**:
+  - `numpy` - 用于音频处理
+  - `requests` - 用于API请求（llm_bytedance）
+  - `wave` - 用于WAV文件处理
+  - `urllib` - 用于HTTP请求
+  - `json` - 用于JSON处理
+  - `base64` - 用于编码解码
+
+### 系统工具依赖
+
 - **音频播放依赖**:
   - mpg123: 用于播放MP3格式音频
   - aplay: 用于播放WAV格式音频
@@ -127,3 +178,31 @@ ros2 launch robot_voice_launcher voice_system.launch.py enable_filter:=false
 - **API依赖**:
   - 百度语音API (语音识别和合成)
   - 火山引擎API (大语言模型)
+
+### 安装命令
+
+您可以使用以下命令安装大部分依赖项：
+
+```bash
+# ROS2基础依赖
+sudo apt-get install ros-iron-rclpy ros-iron-rclcpp ros-iron-rclcpp-components ros-iron-std-msgs ros-iron-std-srvs ros-iron-launch ros-iron-launch-ros ros-iron-launch-xml ros-iron-ament-cmake ros-iron-rosidl-default-generators ros-iron-rosidl-default-runtime
+
+# GStreamer相关依赖
+sudo apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-alsa gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-plugins-bad
+
+# 其他系统依赖
+sudo apt-get install libboost-dev ros-iron-diagnostic-updater
+
+# 系统工具
+sudo apt-get install mpg123 alsa-utils ffmpeg
+
+# Python依赖
+pip install numpy requests
+```
+
+对于API密钥，您需要在环境中设置：
+```bash
+# 设置火山引擎API密钥
+export ARK_API_KEY="您的火山引擎API密钥"
+
+# 百度API密钥需要在代码中配置或通过参数传入

@@ -32,9 +32,10 @@ def generate_launch_description():
         description='Audio buffer size for speech recognition'
     )
     
+    # TODO 重点调试 - 麦克风收音灵敏度
     silence_threshold_arg = DeclareLaunchArgument(
         'silence_threshold',
-        default_value='200',
+        default_value='50',
         description='Threshold for silence detection'
     )
     
@@ -46,7 +47,7 @@ def generate_launch_description():
     
     silence_duration_arg = DeclareLaunchArgument(
         'silence_duration',
-        default_value='1.5',
+        default_value='1.0',
         description='Duration of silence to consider end of utterance (in seconds)'
     )
     

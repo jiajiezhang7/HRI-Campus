@@ -44,7 +44,7 @@
 
 - **功能**：接收音频数据，使用百度API进行语音识别
 - **主要参数**：
-  - `language`: 识别语言 (默认: `en_us`)
+  - `language`: 识别语言 (默认: `en-us`)
   - `buffer_size`: 音频缓冲区大小 (默认: `32000`)
   - `silence_threshold`: 静音检测阈值 (默认: `200`)
   - `silence_duration`: 判断语音结束的静音持续时间 (默认: `1.5`秒)

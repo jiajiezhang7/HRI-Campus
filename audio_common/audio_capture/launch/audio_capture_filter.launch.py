@@ -78,7 +78,7 @@ def generate_launch_description():
     # 高通滤波器参数
     enable_filter_arg = DeclareLaunchArgument(
         'enable_filter',
-        default_value='true',  # 默认启用滤波器
+        default_value='false',  # 默认启用滤波器
         description='Enable high-pass filter for noise reduction'
     )
     

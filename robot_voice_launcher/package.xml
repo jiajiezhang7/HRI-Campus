@@ -13,6 +13,10 @@
   <depend>speech_recognition_baidu</depend>
   <depend>llm_bytedance</depend>
   <depend>speech_generation_baidu</depend>
+  <depend>audio_play_python</depend>
+  <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
+  <depend>rclpy</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

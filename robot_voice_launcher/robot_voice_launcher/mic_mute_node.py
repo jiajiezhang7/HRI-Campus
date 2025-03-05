@@ -49,12 +49,19 @@ class MicMuteNode(Node):
         )
         
         # 创建订阅者，订阅音频播放完成事件
-        # 注意：这需要音频播放节点发布此事件
         self.playback_complete_subscription = self.create_subscription(
             Empty,
             '/audio_playback_complete',
             self.playback_complete_callback,
             10
+        )
+        
+        # 创建订阅者，直接订阅麦克风静音控制信号
+        self.mute_control_subscription = self.create_subscription(
+            Bool,
+            '/mic_mute',
+            self.mute_control_callback,
+            1  # 设置高优先级
         )
         
         # 创建定时器，定期检查音频播放状态
@@ -65,6 +72,21 @@ class MicMuteNode(Node):
         
         # 初始状态：麦克风启用
         self.publish_mute_state(False)
+    
+    def mute_control_callback(self, msg):
+        """
+        处理直接的麦克风静音控制信号
+        """
+        with self.audio_lock:
+            if msg.data and not self.is_muted:
+                self.get_logger().info('收到静音信号，静音麦克风')
+                self.publish_mute_state(True)
+                self.audio_playing = True
+                self.last_audio_time = time.time()
+            elif not msg.data and self.is_muted:
+                self.get_logger().info('收到取消静音信号，恢复麦克风')
+                self.publish_mute_state(False)
+                self.audio_playing = False
     
     def audio_callback(self, msg):
         """

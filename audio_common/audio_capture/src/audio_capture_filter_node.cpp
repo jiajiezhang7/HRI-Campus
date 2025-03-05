@@ -13,6 +13,7 @@
 #include "audio_common_msgs/msg/audio_data.hpp"
 #include "audio_common_msgs/msg/audio_data_stamped.hpp"
 #include "audio_common_msgs/msg/audio_info.hpp"
+#include "std_msgs/msg/bool.hpp"
 
 namespace audio_capture
 {
@@ -67,7 +68,7 @@ namespace audio_capture
   {
     public:
       AudioCaptureFilterNode(const rclcpp::NodeOptions & options)
-      : Node("audio_capture_filter_node", options), updater_(this), _desired_rate(-1.0)
+      : Node("audio_capture_filter_node", options), updater_(this), _desired_rate(-1.0), _muted(false)
       {
         gst_init(nullptr, nullptr);
 
@@ -130,6 +131,14 @@ namespace audio_capture
 
         rclcpp::Publisher<audio_common_msgs::msg::AudioDataStamped>::SharedPtr pub_stamped =
           this->create_publisher<audio_common_msgs::msg::AudioDataStamped>("audio_stamped", 10);
+
+        // 创建订阅者，订阅麦克风静音状态
+        _mute_subscription = this->create_subscription<std_msgs::msg::Bool>(
+          "/mic_mute",
+          1,  // 高优先级
+          std::bind(&AudioCaptureFilterNode::mute_callback, this, std::placeholders::_1)
+        );
+        RCLCPP_INFO(this->get_logger(), "已创建 /mic_mute 订阅，将根据静音信号控制音频发布");
 
         this->declare_parameter<double>("diagnostic_tolerance", 0.1);
         auto tolerance = this->get_parameter("diagnostic_tolerance").as_double();
@@ -266,6 +275,18 @@ namespace audio_capture
         g_main_loop_unref(_loop);
       }
 
+      // 处理麦克风静音控制信号的回调函数
+      void mute_callback(const std_msgs::msg::Bool::SharedPtr msg)
+      {
+        if (msg->data && !_muted) {
+          _muted = true;
+          RCLCPP_INFO(this->get_logger(), "收到静音信号，暂停发布音频数据");
+        } else if (!msg->data && _muted) {
+          _muted = false;
+          RCLCPP_INFO(this->get_logger(), "收到取消静音信号，恢复发布音频数据");
+        }
+      }
+
     private:
       diagnostic_updater::Updater updater_;
       std::shared_ptr<diagnostic_updater::DiagnosedPublisher<audio_common_msgs::msg::AudioDataStamped>> _diagnosed_pub_stamped;
@@ -274,6 +295,8 @@ namespace audio_capture
       rclcpp::Publisher<audio_common_msgs::msg::AudioData>::SharedPtr _pub;
       rclcpp::Publisher<audio_common_msgs::msg::AudioInfo>::SharedPtr _pub_info;
       rclcpp::TimerBase::SharedPtr _timer_info;
+      rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr _mute_subscription;
+      bool _muted;
 
       // GStreamer 管道和元素
       GstElement *_pipeline, *_source, *_filter, *_sink, *_convert, *_encode;
@@ -302,6 +325,14 @@ namespace audio_capture
         GstMapInfo map;
         
         if (gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+          // 检查麦克风是否处于静音状态
+          if (node->_muted) {
+            // 麦克风静音，不发布音频数据
+            gst_buffer_unmap(buffer, &map);
+            gst_sample_unref(sample);
+            return GST_FLOW_OK;
+          }
+          
           audio_common_msgs::msg::AudioData msg;
           
           // 如果启用了滤波器并且是wave格式，应用高通滤波器

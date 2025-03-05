@@ -15,7 +15,7 @@ import tempfile
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from audio_common_msgs.msg import AudioData
 
 class SpeechGenerationStepfunNode(Node):
@@ -69,6 +69,13 @@ class SpeechGenerationStepfunNode(Node):
         self.audio_publisher = self.create_publisher(
             AudioData,
             '/audio_generated',
+            10
+        )
+        
+        # 创建发布者，发布麦克风静音信号
+        self.mute_publisher = self.create_publisher(
+            Bool,
+            '/mic_mute',
             10
         )
         
@@ -174,6 +181,12 @@ class SpeechGenerationStepfunNode(Node):
             return
         
         self.get_logger().info(f"收到文本消息: {msg.data[:50]}...")
+        
+        # 在开始语音合成前，先发送麦克风静音信号
+        mute_msg = Bool()
+        mute_msg.data = True
+        self.mute_publisher.publish(mute_msg)
+        self.get_logger().info("已发送麦克风静音信号")
         
         # 将文本转换为语音
         audio_data = self.text_to_speech(msg.data)

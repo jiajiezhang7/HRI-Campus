@@ -22,7 +22,7 @@ class SerialCommunication(Node):
     def face_angle_callback(self, msg):
         # 当接收到 /face_angle 话题的数据时更新角度值
         self.angle = msg.data / 2
-        self.get_logger().info(f'Received face angle: "{self.angle}"')
+        # self.get_logger().info(f'Received face angle: "{self.angle}"')
         
         # 将接收到的角度发送到串口
         self.send_to_serial(self.angle)
@@ -30,12 +30,12 @@ class SerialCommunication(Node):
     def send_to_serial(self, angle):
         # 将接收到的角度值发送到串口
         self.serial_port.write((str(angle) + '\n').encode('ascii'))  # 确保发送换行符以便Arduino端正确解析
-        self.get_logger().info(f'Sent to serial: "{angle}"')
+        # self.get_logger().info(f'Sent to serial: "{angle}"')
 
         # 读取串口数据
         if self.serial_port.in_waiting > 0:
             line = self.serial_port.readline().decode('ascii').strip()
-            self.get_logger().info(f'Received from serial: "{line}"')
+            # self.get_logger().info(f'Received from serial: "{line}"')
 
 def main(args=None):
     rclpy.init(args=args)

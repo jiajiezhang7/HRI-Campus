@@ -7,8 +7,8 @@
 
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String, Float32, Bool
-from std_srvs.srv import Empty
+from std_msgs.msg import String, Float32, Bool, Empty
+from std_srvs.srv import Empty as EmptyService
 import time
 
 class InteractionCoordinatorNode(Node):
@@ -18,6 +18,7 @@ class InteractionCoordinatorNode(Node):
     订阅话题:
         /face_angle: 从human_detect接收面向相机的人脸角度
         /llm_response: 接收LLM生成的响应文本
+        /audio_playback_complete: 接收音频播放完成事件
     
     发布话题:
         /continue_detection: 控制是否继续检测人脸
@@ -41,6 +42,14 @@ class InteractionCoordinatorNode(Node):
             10
         )
         
+        # 创建订阅者，接收音频播放完成事件
+        self.playback_complete_sub = self.create_subscription(
+            Empty,  
+            '/audio_playback_complete',
+            self.playback_complete_callback,
+            10
+        )
+        
         # 创建发布者，发布继续检测标志
         self.detection_pub = self.create_publisher(
             Bool,
@@ -49,12 +58,15 @@ class InteractionCoordinatorNode(Node):
         )
         
         # 状态标志
-        self.questioning_active = False  # 标记是否已经触发了主动发问
-        self.interaction_complete = False  # 标记交互是否已完成
+        self.questioning_active = False  
+        self.interaction_complete = False  
+        self.waiting_for_playback = False  
+        self.pending_reset = False  
+        self.received_playback_event = False  
         
         # 创建客户端，用于调用active_questioning节点的服务
         self.trigger_question_client = self.create_client(
-            Empty,
+            EmptyService,  
             '/active_questioning/trigger_question'
         )
         
@@ -67,7 +79,19 @@ class InteractionCoordinatorNode(Node):
         # 创建一个定时器，定期发布继续检测标志
         self.timer = self.create_timer(1.0, self.publish_detection_status)
         
+        # 发布初始状态，确保开始时能够检测人脸
+        self.publish_initial_status()
+        
         self.get_logger().info('交互协调器节点已初始化')
+    
+    def publish_initial_status(self):
+        """
+        发布初始状态，确保开始时能够检测人脸
+        """
+        msg = Bool()
+        msg.data = True  
+        self.detection_pub.publish(msg)
+        self.get_logger().info('发布初始检测状态：允许检测')
     
     def face_angle_callback(self, msg):
         """
@@ -75,13 +99,14 @@ class InteractionCoordinatorNode(Node):
         当检测到人脸时触发主动发问
         """
         if self.questioning_active or self.interaction_complete:
-            # 如果已经触发了主动发问或交互已完成，则忽略后续的人脸检测
+            return
+        
+        if self.waiting_for_playback and self.received_playback_event:
             return
         
         face_angle = msg.data
         self.get_logger().info(f'检测到人脸，角度: {face_angle}°')
         
-        # 触发主动发问
         self.trigger_questioning()
     
     def trigger_questioning(self):
@@ -97,13 +122,10 @@ class InteractionCoordinatorNode(Node):
         
         self.get_logger().info('触发主动发问')
         
-        # 标记已触发主动发问
         self.questioning_active = True
         
-        # 创建请求
-        request = Empty.Request()
+        request = EmptyService.Request()  
         
-        # 异步调用服务
         future = self.trigger_question_client.call_async(request)
         future.add_done_callback(self.questioning_callback)
     
@@ -116,7 +138,6 @@ class InteractionCoordinatorNode(Node):
             self.get_logger().info('主动发问已触发')
         except Exception as e:
             self.get_logger().error(f'触发主动发问时出错: {str(e)}')
-            # 如果出错，重置状态以便下次重试
             self.questioning_active = False
     
     def llm_response_callback(self, msg):
@@ -125,19 +146,34 @@ class InteractionCoordinatorNode(Node):
         根据响应内容决定是继续寻找人还是停止流程
         """
         if not self.questioning_active or self.interaction_complete:
-            # 如果尚未触发主动发问或交互已完成，则忽略LLM响应
             return
         
         response_text = msg.data
         self.get_logger().info(f'收到LLM响应: {response_text}')
         
-        # 根据响应内容决定是继续寻找人还是停止流程
-        if response_text == "Thanks for your help" or response_text == "谢谢你的帮助":
+        positive_keywords = ["hero", "小可爱"]
+        negative_keywords = ["jerk", "小趴菜"]
+        
+        if any(keyword in response_text for keyword in positive_keywords):
             self.get_logger().info('检测到积极响应，停止交互')
             self.interaction_complete = True
-        elif response_text == "Never mind, I will find someone else to help" or response_text == "没关系，我会找其他人帮忙":
-            self.get_logger().info('检测到消极响应，继续寻找人')
-            # 重置状态，继续寻找人
+        elif any(keyword in response_text for keyword in negative_keywords):
+            self.get_logger().info('检测到消极响应，等待音频播放完成后继续寻找人')
+            self.waiting_for_playback = True
+            self.pending_reset = True
+    
+    def playback_complete_callback(self, msg):
+        """
+        处理音频播放完成事件
+        如果有待处理的状态重置，则重置状态
+        """
+        self.get_logger().info('音频播放完成')
+        self.received_playback_event = True
+        
+        if self.waiting_for_playback and self.pending_reset:
+            self.get_logger().info('重置状态，继续寻找人')
+            self.waiting_for_playback = False
+            self.pending_reset = False
             self.questioning_active = False
     
     def publish_detection_status(self):
@@ -145,8 +181,12 @@ class InteractionCoordinatorNode(Node):
         定期发布继续检测标志
         """
         msg = Bool()
-        # 如果交互已完成，则停止检测
-        msg.data = not self.interaction_complete
+        
+        if not self.received_playback_event:
+            msg.data = not self.interaction_complete  
+        else:
+            msg.data = not (self.interaction_complete or self.waiting_for_playback)
+            
         self.detection_pub.publish(msg)
 
 

@@ -197,7 +197,7 @@ class PanoramaHumanDetector(Node):
 
         # 发布面向相机且离相机最近的人脸角度
         if closest_face_angle is not None:
-            self.get_logger().info(f"面向相机的人脸角度为: {closest_face_angle}°")
+            # self.get_logger().info(f"面向相机的人脸角度为: {closest_face_angle}°")
             self.face_angle_pub.publish(Float32(data=closest_face_angle))
         else:
             self.get_logger().info("未检测到面向相机的人脸")

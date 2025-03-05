@@ -59,9 +59,9 @@ def generate_launch_description():
         # 先启动摄像头系统
         camera_system_launch,
         
-        # 等待3秒后启动语音系统
+        # 等待5秒后启动语音系统
         TimerAction(
-            period=3.0,
+            period=5.0,
             actions=[voice_system_launch]
         ),
         

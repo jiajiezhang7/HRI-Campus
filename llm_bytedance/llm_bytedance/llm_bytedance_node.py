@@ -53,7 +53,7 @@ class LLMBytedanceNode(Node):
                     3. 生成响应：
                     - 若对话者使用英文：
                     - YES → "Wow, you’re my elevator hero, I’ll name my pet goldfish after you!"
-                    - NO → "Ugh, you slimy toad, hope you trip over your own shoelaces!"
+                    - NO → "Ugh, you selfish jerk, I won’t even spare you a glance."
                     - 若对话者使用中文：
                     - YES → "哈哈，你真是个小可爱，姐姐我决定赐你个锦旗!"
                     - NO → "哎哟喂，你这个小趴菜，敢拒绝老娘我，看我不把你扔进垃圾桶!"

@@ -14,7 +14,7 @@ def generate_launch_description():
     # 音色选择
     voice_arg = DeclareLaunchArgument(
         'voice',
-        default_value='cixingnansheng',
+        default_value='ruanmengnvsheng',
         # 优雅女生 youyanvsheng
         # 软萌女生 ruanmengnvsheng
         # 温柔女生 wenrounvsheng

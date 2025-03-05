@@ -36,14 +36,14 @@ def generate_launch_description():
     # 声明高通滤波器截止频率参数
     cutoff_frequency_arg = DeclareLaunchArgument(
         'cutoff_frequency',
-        default_value='100.0',
+        default_value='800.0',
         description='Cutoff frequency for high-pass filter in Hz'
     )
     
     # 声明语音识别静音阈值参数
     silence_threshold_arg = DeclareLaunchArgument(
         'silence_threshold',
-        default_value='30',
+        default_value='50',
         description='Threshold for silence detection in speech recognition'
     )
     

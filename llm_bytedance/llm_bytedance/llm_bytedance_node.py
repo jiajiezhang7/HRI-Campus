@@ -51,8 +51,8 @@ class LLMBytedanceNode(Node):
             2. 态度判定：若检测到上述任一积极要素 → 判定为"YES"，否则 → 判定为"NO"
 
             3. 生成响应：
-            - YES → "Thanks for your help!"
-            - NO → "Never mind, I will find someone else to help."
+            - YES → "Thanks for your help"
+            - NO → "Never mind, I will find someone else to help"
 
             【输出规范】
             仅允许输出以下两种预定义响应之一，禁止添加任何：

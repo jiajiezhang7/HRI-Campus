@@ -47,13 +47,6 @@ def generate_launch_description():
         description='Threshold for silence detection in speech recognition'
     )
     
-    # 声明麦克风静音持续时间参数
-    mute_duration_arg = DeclareLaunchArgument(
-        'mute_duration',
-        default_value='7.0',
-        description='Duration to keep microphone muted after audio playback (seconds)'
-    )
-    
     # 查找各个包的路径
     audio_capture_pkg_dir = FindPackageShare('audio_capture')
     speech_recognition_pkg_dir = FindPackageShare('speech_recognition_baidu')
@@ -115,12 +108,14 @@ def generate_launch_description():
     mic_mute_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'mic_mute.launch.py'])
-        ]),
-        launch_arguments={
-            'mute_duration': LaunchConfiguration('mute_duration')
-        }.items()
+        ])
     )
-    
+        # 主动发问节点
+    active_questioning_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'active_questioning.launch.py'])
+        ])
+    )
     # 音频录制节点
     audio_recorder_script = os.path.join('/home/agilex03/hri_ws/src', 'audio_recorder.py')
     audio_recorder_node = ExecuteProcess(
@@ -135,7 +130,6 @@ def generate_launch_description():
         enable_filter_arg,
         cutoff_frequency_arg,
         silence_threshold_arg,
-        mute_duration_arg,
         
         # 节点
         mic_capture_launch,
@@ -170,6 +164,11 @@ def generate_launch_description():
             actions=[mic_mute_launch]
         ),
         
+                # 等待5秒后启动主动发问节点
+        TimerAction(
+            period=5.0,
+            actions=[active_questioning_launch]
+        ),
         # 等待5秒后启动音频记录器（可选）
         # TimerAction(
         #     period=5.0,

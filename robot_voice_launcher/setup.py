@@ -24,6 +24,8 @@ setup(
         'console_scripts': [
             'active_questioning_node = robot_voice_launcher.active_questioning_node:main',
             'mic_mute_node = robot_voice_launcher.mic_mute_node:main',
+            'interaction_coordinator_node = robot_voice_launcher.interaction_coordinator_node:main',
+            'service_trigger_node = robot_voice_launcher.service_trigger_node:main',
         ],
     },
 )

@@ -150,8 +150,8 @@ class SpeechRecognitionBaiduNode(Node):
         self.mic_muted = msg.data
         if self.mic_muted:
             self.get_logger().info('麦克风已静音，暂停音频处理')
-        else:
-            self.get_logger().info('麦克风已恢复，继续音频处理')
+        # else:
+            # self.get_logger().info('麦克风已恢复，继续音频处理')
     
     def audio_callback(self, msg):
         """

@@ -1,7 +1,7 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Bool
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
@@ -32,6 +32,15 @@ class PanoramaHumanDetector(Node):
 
         # 发布器，发布面向相机的人脸角度
         self.face_angle_pub = self.create_publisher(Float32, '/face_angle', 1)
+        
+        # 添加订阅者，接收是否继续检测的标志
+        self.continue_detection = True  # 默认继续检测
+        self.continue_detection_sub = self.create_subscription(
+            Bool,
+            '/continue_detection',
+            self.continue_detection_callback,
+            10
+        )
 
         # 每两秒触发一次回调
         # self.timer = self.create_timer(2.0, self.image_callback)
@@ -98,7 +107,20 @@ class PanoramaHumanDetector(Node):
 
         return persp
 
+    def continue_detection_callback(self, msg):
+        """处理是否继续检测的标志"""
+        self.continue_detection = msg.data
+        if not self.continue_detection:
+            self.get_logger().info("收到停止检测指令")
+        else:
+            self.get_logger().info("收到继续检测指令")
+
     def image_callback(self, msg):
+        # 检查是否需要继续检测
+        if not self.continue_detection:
+            # 如果不需要继续检测，则直接返回
+            return
+            
         # 从ROS消息中获取图像
         if msg is None:
             return

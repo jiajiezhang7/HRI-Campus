@@ -111,6 +111,13 @@ def generate_launch_description():
         ])
     )
     
+    # 主动发问节点
+    active_questioning_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'active_questioning.launch.py'])
+        ])
+    )
+    
     # 音频录制节点
     audio_recorder_script = os.path.join('/home/agilex03/hri_ws/src', 'audio_recorder.py')
     audio_recorder_node = ExecuteProcess(
@@ -157,6 +164,12 @@ def generate_launch_description():
         TimerAction(
             period=4.5,
             actions=[mic_mute_launch]
+        ),
+        
+        # 等待5秒后启动主动发问节点
+        TimerAction(
+            period=5.0,
+            actions=[active_questioning_launch]
         ),
         
         # 等待5秒后启动音频记录器（可选）

@@ -22,7 +22,7 @@ def generate_launch_description():
     # 语音系统启动文件
     voice_system_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            PathJoinSubstitution([robot_voice_pkg_dir, 'launch', 'voice_system_baidu.launch.py'])
+            PathJoinSubstitution([robot_voice_pkg_dir, 'launch', 'voice_system_stepfun.launch.py'])
         ]),
         # 这里可以添加launch参数覆盖，例如:
         # launch_arguments={'enable_filter': 'true'}.items()

@@ -47,13 +47,6 @@ def generate_launch_description():
         description='Threshold for silence detection in speech recognition'
     )
     
-    # 声明麦克风静音持续时间参数
-    mute_duration_arg = DeclareLaunchArgument(
-        'mute_duration',
-        default_value='7.0',
-        description='Duration to keep microphone muted after audio playback (seconds)'
-    )
-    
     # 查找各个包的路径
     audio_capture_pkg_dir = FindPackageShare('audio_capture')
     speech_recognition_pkg_dir = FindPackageShare('speech_recognition_stepfun')
@@ -115,10 +108,7 @@ def generate_launch_description():
     mic_mute_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'mic_mute.launch.py'])
-        ]),
-        launch_arguments={
-            'mute_duration': LaunchConfiguration('mute_duration')
-        }.items()
+        ])
     )
     
     # 音频录制节点
@@ -135,7 +125,6 @@ def generate_launch_description():
         enable_filter_arg,
         cutoff_frequency_arg,
         silence_threshold_arg,
-        mute_duration_arg,
         
         # 节点
         mic_capture_launch,

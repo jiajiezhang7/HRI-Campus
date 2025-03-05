@@ -5,26 +5,18 @@
 ROS2节点，用于在音频播放时临时禁用麦克风，防止扬声器声音被麦克风拾取导致的反馈循环
 """
 
-import rclpy
-import threading
 import time
+import threading
+import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Bool, Empty
 from audio_common_msgs.msg import AudioData
 
-
 class MicMuteNode(Node):
-    """
-    麦克风静音控制节点，监听音频播放状态，在播放时禁用麦克风
-    """
+    """麦克风静音控制节点，监听音频播放状态，在播放时禁用麦克风"""
+    
     def __init__(self):
         super().__init__('mic_mute_node')
-        
-        # 声明参数
-        self.declare_parameter('mute_duration', 7.0)  # 音频播放后保持麦克风静音的时间（秒）
-        
-        # 获取参数
-        self.mute_duration = self.get_parameter('mute_duration').value
         
         # 状态变量
         self.is_muted = False
@@ -68,33 +60,30 @@ class MicMuteNode(Node):
         self.check_timer = self.create_timer(0.5, self.check_audio_status)
         
         self.get_logger().info('麦克风静音控制节点已初始化')
-        self.get_logger().info(f'静音持续时间: {self.mute_duration}秒')
         
         # 初始状态：麦克风启用
         self.publish_mute_state(False)
-    
+        
     def mute_control_callback(self, msg):
         """
         处理直接的麦克风静音控制信号
         """
-        with self.audio_lock:
-            if msg.data and not self.is_muted:
-                self.get_logger().info('收到静音信号，静音麦克风')
-                self.publish_mute_state(True)
+        if msg.data:
+            # self.get_logger().info('收到静音信号，静音麦克风')
+            with self.audio_lock:
                 self.audio_playing = True
                 self.last_audio_time = time.time()
-            elif not msg.data and self.is_muted:
-                self.get_logger().info('收到取消静音信号，恢复麦克风')
-                self.publish_mute_state(False)
+            self.publish_mute_state(True)
+        else:
+            # self.get_logger().info('收到解除静音信号')
+            with self.audio_lock:
                 self.audio_playing = False
+            self.publish_mute_state(False)  # 直接解除静音，不使用 unmute_microphone 方法
     
     def audio_callback(self, msg):
         """
         处理接收到的音频数据，当有音频播放时静音麦克风
         """
-        if not msg.data:
-            return
-        
         with self.audio_lock:
             self.last_audio_time = time.time()
             self.audio_playing = True
@@ -108,47 +97,46 @@ class MicMuteNode(Node):
         """
         处理音频播放完成事件
         """
+        self.get_logger().info('收到音频播放完成事件')
         with self.audio_lock:
             self.audio_playing = False
-            
-            # 设置定时器，在指定时间后恢复麦克风
-            if self.mute_timer:
-                self.mute_timer.cancel()
-            
-            self.mute_timer = self.create_timer(
-                self.mute_duration,
-                self.unmute_microphone
-            )
+            self.get_logger().info(f'设置 audio_playing = False, 当前 is_muted = {self.is_muted}')
+        
+        # 音频播放完成，立即恢复麦克风（不在锁内调用，避免死锁）
+        # 直接发布解除静音状态，不使用 unmute_microphone 方法
+        self.get_logger().info('音频播放完成，直接解除麦克风静音')
+        self.publish_mute_state(False)
     
     def check_audio_status(self):
         """
         定期检查音频播放状态，处理可能的播放完成事件丢失情况
         """
         with self.audio_lock:
+            # 如果超过3秒没有收到音频数据，认为播放已结束
             if self.audio_playing and time.time() - self.last_audio_time > 3.0:
-                # 如果超过3秒没有收到新的音频数据，认为播放已完成
+                self.get_logger().info('超过3秒未收到音频数据，认为播放已结束')
                 self.audio_playing = False
-                
-                # 设置定时器，在指定时间后恢复麦克风
-                if self.mute_timer:
-                    self.mute_timer.cancel()
-                
-                self.mute_timer = self.create_timer(
-                    self.mute_duration,
-                    self.unmute_microphone
-                )
+        
+        # 如果检测到播放结束，直接解除静音（不在锁内调用，避免死锁）
+        if not self.audio_playing and self.is_muted:
+            self.get_logger().info('检测到播放结束，直接解除麦克风静音')
+            self.publish_mute_state(False)
     
     def unmute_microphone(self):
         """
-        恢复麦克风
+        恢复麦克风（此方法保留但不再使用，为了兼容性）
         """
-        with self.audio_lock:
-            if self.is_muted and not self.audio_playing:
-                self.get_logger().info('音频播放结束，恢复麦克风')
-                self.publish_mute_state(False)
-            
-            # 清除定时器
-            self.mute_timer = None
+        self.get_logger().info(f'尝试解除麦克风静音，当前状态: is_muted={self.is_muted}, audio_playing={self.audio_playing}')
+        
+        # 直接解除静音，不再进行条件判断
+        if self.is_muted:
+            self.get_logger().info('解除麦克风静音')
+            self.publish_mute_state(False)
+        else:
+            self.get_logger().info('麦克风已经处于非静音状态')
+        
+        # 清除定时器（为了兼容性保留这行代码）
+        self.mute_timer = None
     
     def publish_mute_state(self, mute_state):
         """
@@ -158,6 +146,7 @@ class MicMuteNode(Node):
         msg = Bool()
         msg.data = mute_state
         self.mute_publisher.publish(msg)
+        # self.get_logger().info(f'已发布麦克风状态: {"静音" if mute_state else "非静音"}')
 
 
 def main(args=None):

@@ -43,6 +43,17 @@ def generate_launch_description():
         output='screen'
     )
     
+    # 模拟电梯楼层信息发布节点
+    dummy_level_publisher_node = Node(
+        package='dummy_level_publisher',
+        executable='dummy_level_publisher',
+        name='dummy_level_publisher_node',
+        output='screen',
+        parameters=[
+            {'publish_frequency': 5.0}
+        ]
+    )
+    
     # 返回启动描述
     return LaunchDescription([
         # 先启动摄像头系统
@@ -58,5 +69,8 @@ def generate_launch_description():
         TimerAction(
             period=8.0,
             actions=[interaction_coordinator_node]
-        )
+        ),
+        
+        # 同时启动模拟电梯楼层信息发布节点
+        dummy_level_publisher_node
     ])

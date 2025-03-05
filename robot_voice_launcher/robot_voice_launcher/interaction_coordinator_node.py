@@ -132,10 +132,10 @@ class InteractionCoordinatorNode(Node):
         self.get_logger().info(f'收到LLM响应: {response_text}')
         
         # 根据响应内容决定是继续寻找人还是停止流程
-        if response_text == "Thanks for your help":
+        if response_text == "Thanks for your help" or response_text == "谢谢你的帮助":
             self.get_logger().info('检测到积极响应，停止交互')
             self.interaction_complete = True
-        elif response_text == "Never mind, I will find someone else to help":
+        elif response_text == "Never mind, I will find someone else to help" or response_text == "没关系，我会找其他人帮忙":
             self.get_logger().info('检测到消极响应，继续寻找人')
             # 重置状态，继续寻找人
             self.questioning_active = False

@@ -10,12 +10,14 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 from std_srvs.srv import Empty
+from level_interfaces.msg import Level
 import time
 
 class ActiveQuestioningNode(Node):
     """
     主动发问节点，发送固定问题到语音合成模块
     提供服务接口供其他节点调用
+    根据电梯楼层信息调整问题内容
     """
     def __init__(self):
         super().__init__('active_questioning_node')
@@ -27,7 +29,22 @@ class ActiveQuestioningNode(Node):
             10
         )
         
-        # 固定的问题文本
+        # 创建订阅者，订阅电梯楼层信息
+        self.level_subscriber = self.create_subscription(
+            Level,
+            '/dummy_level',
+            self.level_callback,
+            10
+        )
+        
+        # 当前电梯信息
+        self.current_level_info = None
+        
+        # 基础问题文本模板
+        self.up_template = "Hello, could you please press the elevator's up button for me? I'd like to go to the %d floor."
+        self.down_template = "Hello, could you please press the elevator's down button for me? I'd like to go to the %d floor."
+        
+        # 默认问题文本（兼容没有接收到电梯信息的情况）
         self.question_text = "Hello, could you please press the elevator button for me?"
         
         # 声明参数
@@ -50,6 +67,19 @@ class ActiveQuestioningNode(Node):
         )
         
         self.get_logger().info('主动发问节点已初始化，等待服务调用')
+    
+    def level_callback(self, msg):
+        """
+        处理接收到的电梯楼层信息
+        """
+        self.current_level_info = msg
+        self.get_logger().debug(f'接收到电梯信息：方向={msg.is_up}, 楼层={msg.level}')
+        
+        # 根据电梯信息更新问题文本
+        if msg.is_up:
+            self.question_text = self.up_template % msg.level
+        else:
+            self.question_text = self.down_template % msg.level
     
     def ask_question(self):
         """

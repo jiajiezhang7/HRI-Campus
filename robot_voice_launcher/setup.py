@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'active_questioning_node = robot_voice_launcher.active_questioning_node:main',
+            'mic_mute_node = robot_voice_launcher.mic_mute_node:main',
         ],
     },
 )

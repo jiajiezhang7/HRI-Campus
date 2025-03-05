@@ -17,7 +17,7 @@ def generate_launch_description():
     # 声明所有launch参数
     device_arg = DeclareLaunchArgument(
         'device',
-        default_value='plughw:3,0',  # 使用ALSA插件接口而不是直接硬件访问
+        default_value='plughw:0,0',  # 使用ALSA插件接口访问Comica_VM10 PRO麦克风
         description='Audio device identifier'
     )
     
@@ -75,16 +75,30 @@ def generate_launch_description():
         description='Name of the audio topic'
     )
     
-    # 高通滤波器参数
+    # GStreamer音频捕获参数
+    buffer_time_arg = DeclareLaunchArgument(
+        'buffer_time',
+        default_value='100000',  # 100毫秒，比默认值小一半，提高灵敏度
+        description='Audio buffer size in microseconds'
+    )
+    
+    latency_time_arg = DeclareLaunchArgument(
+        'latency_time',
+        default_value='5000',    # 5毫秒，比默认值小一半，提高灵敏度
+        description='Minimum amount of data to read in each iteration in microseconds'
+    )
+    
+    # 高通滤波器参数 - 被上层launch文件 voice_system.launch.py覆盖了
     enable_filter_arg = DeclareLaunchArgument(
         'enable_filter',
         default_value='false',  # 默认启用滤波器
         description='Enable high-pass filter for noise reduction'
     )
     
+    # 截止频率 - 被上层launch文件 voice_system.launch.py覆盖了
     cutoff_frequency_arg = DeclareLaunchArgument(
         'cutoff_frequency',
-        default_value='100.0',  # 默认截止频率100Hz
+        default_value='50.0',  # 默认截止频率100Hz
         description='Cutoff frequency for high-pass filter in Hz'
     )
     
@@ -105,6 +119,8 @@ def generate_launch_description():
             'sample_format': LaunchConfiguration('sample_format'),
             'enable_filter': LaunchConfiguration('enable_filter'),
             'cutoff_frequency': LaunchConfiguration('cutoff_frequency'),
+            'buffer_time': LaunchConfiguration('buffer_time'),
+            'latency_time': LaunchConfiguration('latency_time'),
         }],
         remappings=[
             ('audio', LaunchConfiguration('audio_topic')),
@@ -129,6 +145,8 @@ def generate_launch_description():
         dst_arg,
         ns_arg,
         audio_topic_arg,
+        buffer_time_arg,
+        latency_time_arg,
         enable_filter_arg,
         cutoff_frequency_arg,
         group_action

@@ -116,6 +116,13 @@ namespace audio_capture
         this->get_parameter("src", src_type);
         this->declare_parameter<std::string>("device", "");
         this->get_parameter("device", device);
+        
+        // 添加GStreamer音频捕获参数
+        this->declare_parameter<int64_t>("buffer_time", 100000);  // 默认100毫秒
+        this->declare_parameter<int64_t>("latency_time", 5000);   // 默认5毫秒
+        int64_t buffer_time, latency_time;
+        this->get_parameter("buffer_time", buffer_time);
+        this->get_parameter("latency_time", latency_time);
 
         _pub = this->create_publisher<audio_common_msgs::msg::AudioData>("audio", 10);
         auto info_qos = rclcpp::QoS(rclcpp::KeepLast(1)).transient_local();
@@ -173,6 +180,12 @@ namespace audio_capture
           // ghcar *gst_device = device.c_str();
           g_object_set(G_OBJECT(_source), "device", device.c_str(), NULL);
         }
+        
+        // 设置音频捕获参数以提高灵敏度
+        g_object_set(G_OBJECT(_source), "buffer-time", buffer_time, NULL);
+        g_object_set(G_OBJECT(_source), "latency-time", latency_time, NULL);
+        RCLCPP_INFO(this->get_logger(), "设置音频捕获参数: buffer-time=%ld μs, latency-time=%ld μs", 
+                   buffer_time, latency_time);
 
         GstCaps *caps;
         caps = gst_caps_new_simple("audio/x-raw",

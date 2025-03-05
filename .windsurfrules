@@ -1,1 +1,0 @@
-1. if you execute "colcon build", please make sure you are under virtual environment "ros2_env", if not, do "conda activate ros2_env" first.

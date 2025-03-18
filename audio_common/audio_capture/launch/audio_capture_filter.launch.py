@@ -18,7 +18,7 @@ def generate_launch_description():
     device_arg = DeclareLaunchArgument(
         'device',
         # TODO Jiajie's Labtop: plughw:3,0, while on agile-x: plughw:0,0
-        default_value='plughw:0,0',  # 使用ALSA插件接口访问Comica_VM10 PRO麦克风 - arecord -l  card n == plughw:n,0 （因为每个卡只有一个设备）
+        default_value='plughw:2,0',  # 使用ALSA插件接口访问Comica_VM10 PRO麦克风 - arecord -l  card n == plughw:n,0 （因为每个卡只有一个设备）
         description='Audio device identifier'
     )
     

@@ -32,12 +32,17 @@ class AudioPlayNode(Node):
         self.declare_parameter('sample_rate', 16000)  # 采样率
         self.declare_parameter('channels', 2)  # 声道数
         self.declare_parameter('device', '')  # 音频设备
+        self.declare_parameter('volume', 100)  # 音量(0-100)
         
         # 获取参数
         self.format = self.get_parameter('format').value
         self.sample_rate = self.get_parameter('sample_rate').value
         self.channels = self.get_parameter('channels').value
         self.device = self.get_parameter('device').value
+        self.volume = self.get_parameter('volume').value
+        
+        # 设置系统音量
+        self.set_system_volume(self.volume)
         
         # 创建临时目录
         self.temp_dir = tempfile.mkdtemp(prefix='audio_play_')
@@ -178,6 +183,29 @@ class AudioPlayNode(Node):
         except Exception as e:
             self.get_logger().error(f"清理临时文件时发生错误: {str(e)}")
     
+    def set_system_volume(self, volume):
+        """
+        设置系统音量(0-100)
+        """
+        try:
+            # 首先尝试使用amixer
+            volume_percent = max(0, min(100, volume))  # 确保音量在0-100范围内
+            cmd = ['amixer', 'sset', 'Master', f'{volume_percent}%']
+            
+            process = subprocess.run(cmd, capture_output=True, text=True)
+            if process.returncode == 0:
+                self.get_logger().info(f'已设置系统音量为{volume_percent}%')
+            else:
+                # 如果amixer失败，尝试使用pactl
+                cmd = ['pactl', 'set-sink-volume', '@DEFAULT_SINK@', f'{volume_percent}%']
+                process = subprocess.run(cmd, capture_output=True, text=True)
+                if process.returncode == 0:
+                    self.get_logger().info(f'已设置系统音量为{volume_percent}%')
+                else:
+                    self.get_logger().error('设置系统音量失败')
+        except Exception as e:
+            self.get_logger().error(f'设置系统音量时发生错误: {str(e)}')
+
     def destroy(self):
         """
         清理资源

@@ -151,8 +151,8 @@ class InteractionCoordinatorNode(Node):
         response_text = msg.data
         self.get_logger().info(f'收到LLM响应: {response_text}')
         
-        positive_keywords = ["hero", "小可爱"]
-        negative_keywords = ["jerk", "小趴菜"]
+        positive_keywords = ["good", "谢谢"]
+        negative_keywords = ["jerk", "另找人"]
         
         if any(keyword in response_text for keyword in positive_keywords):
             self.get_logger().info('检测到积极响应，停止交互')

@@ -8,6 +8,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 from std_msgs.msg import String
 from std_srvs.srv import Empty
 from level_interfaces.msg import Level
@@ -29,12 +30,24 @@ class ActiveQuestioningNode(Node):
             10
         )
         
-        # 创建订阅者，订阅电梯楼层信息
+        # 标记是否已收到电梯信息
+        self.received_level_info = False
+        self.last_level_received_time = None
+        
+        # 创建可靠的QoS配置
+        reliable_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,  # 可靠传输
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,  # 持久性，新订阅者可以收到之前发布的消息
+            history=QoSHistoryPolicy.KEEP_LAST,  # 保留最后N条消息
+            depth=10  # 队列大小
+        )
+        
+        # 创建订阅者，订阅电梯楼层信息，使用可靠的QoS配置
         self.level_subscriber = self.create_subscription(
             Level,
             '/dummy_level',
             self.level_callback,
-            10
+            qos_profile=reliable_qos
         )
         
         # 当前电梯信息
@@ -67,13 +80,28 @@ class ActiveQuestioningNode(Node):
         )
         
         self.get_logger().info('主动发问节点已初始化，等待服务调用')
+        
+        # 创建定时器检查电梯信息
+        self.create_timer(5.0, self.check_level_info)
+    
+    def check_level_info(self):
+        """
+        定期检查电梯信息的可用性
+        """
+        if not self.received_level_info:
+            self.get_logger().warn('尚未接收到任何电梯信息，将使用默认问题文本')
+        else:
+            self.get_logger().debug(f'最后一次接收到电梯信息的时间: {self.last_level_received_time}')
     
     def level_callback(self, msg):
         """
         处理接收到的电梯楼层信息
         """
         self.current_level_info = msg
-        self.get_logger().debug(f'接收到电梯信息：方向={msg.is_up}, 楼层={msg.level}')
+        self.received_level_info = True
+        self.last_level_received_time = self.get_clock().now().to_msg()
+        
+        self.get_logger().debug(f'接收到电梯信息：方向={msg.is_up}, 楼层={msg.level}, 时间={self.last_level_received_time}')
         
         # 根据电梯信息更新问题文本
         if msg.is_up:
@@ -94,7 +122,11 @@ class ActiveQuestioningNode(Node):
             self.retry_timer = self.create_timer(self.retry_interval, self.retry_ask_question)
             return
         
-        self.get_logger().info(f'发送主动问题: "{self.question_text}"')
+        # 记录使用的问题文本类型
+        if self.received_level_info:
+            self.get_logger().debug(f'使用基于电梯信息的问题文本: "{self.question_text}"')
+        else:
+            self.get_logger().warn(f'未接收到电梯信息，使用默认问题文本: "{self.question_text}"')
         
         # 创建消息并发布
         msg = String()
@@ -109,7 +141,11 @@ class ActiveQuestioningNode(Node):
         
         # 检查是否有订阅者
         if self.text_publisher.get_subscription_count() > 0:
-            self.get_logger().info(f'检测到订阅者，发送主动问题: "{self.question_text}"')
+            # 记录使用的问题文本类型
+            if self.received_level_info:
+                self.get_logger().info(f'使用基于电梯信息的问题文本: "{self.question_text}"')
+            else:
+                self.get_logger().warn(f'未接收到电梯信息，使用默认问题文本: "{self.question_text}"')
             
             # 创建消息并发布
             msg = String()

@@ -7,6 +7,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 from level_interfaces.msg import Level
 import random
 import time
@@ -21,11 +22,19 @@ class DummyLevelPublisherNode(Node):
     def __init__(self):
         super().__init__('dummy_level_publisher_node')
         
-        # 创建发布者，发布电梯楼层信息
+        # 创建可靠的QoS配置
+        reliable_qos = QoSProfile(
+            reliability=QoSReliabilityPolicy.RELIABLE,  # 可靠传输
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,  # 持久性，新订阅者可以收到之前发布的消息
+            history=QoSHistoryPolicy.KEEP_LAST,  # 保留最后N条消息
+            depth=10  # 队列大小
+        )
+        
+        # 创建发布者，发布电梯楼层信息，使用可靠的QoS配置
         self.level_publisher = self.create_publisher(
             Level,
             '/dummy_level',
-            10
+            qos_profile=reliable_qos
         )
         
         # 参数声明

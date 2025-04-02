@@ -13,7 +13,7 @@ def generate_launch_description():
     # 声明启动参数
     model_id_arg = DeclareLaunchArgument(
         'model_id',
-        default_value='ep-20250213183336-ngs4d',
+        default_value='ep-20250328110625-qxn6r',
         description='火山引擎大模型-DeepSeek-V3-ID'
     )
     

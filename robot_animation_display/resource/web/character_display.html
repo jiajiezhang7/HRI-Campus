@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>机器人状态显示</title>
+    <style>
+        /* 让背景变黑，内容居中 */
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: black; display: flex; justify-content: center; align-items: center; height: 100%; }
+        #character {
+            /* 图片大小可以根据你的素材调整 */
+            max-width: 80%; /* 限制最大宽度 */
+            max-height: 80%; /* 限制最大高度 */
+            height: auto;
+            width: auto;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+</head>
+<body>
+    <img id="character" src="idle.png" alt="机器人状态">
+
+    <script>
+        // --- 用户需要配置的部分 ---
+        const ROSBRIDGE_SERVER_IP = 'localhost'; // rosbridge 服务器的 IP 地址，通常是本机
+        const ROSBRIDGE_SERVER_PORT = '9090'; // rosbridge 的默认端口
+        const TTS_STATUS_TOPIC = '/tts_status'; // 用来接收"说话状态"的 ROS 话题名称
+        const IDLE_IMAGE_SRC = 'idle.png';     // 空闲状态图片的 **文件名或相对路径**
+        const TALKING_IMAGE_SRC = 'talking.gif'; // 说话状态动画/图片的 **文件名或相对路径**
+        // --- 配置结束 ---
+
+        const characterImage = document.getElementById('character');
+        let ros = null;
+        let ttsStatusListener = null;
+        let isConnected = false;
+
+        function connectRosbridge() {
+            console.log(`尝试连接 ROSBridge: ws://${ROSBRIDGE_SERVER_IP}:${ROSBRIDGE_SERVER_PORT}`);
+            ros = new ROSLIB.Ros({
+                url: `ws://${ROSBRIDGE_SERVER_IP}:${ROSBRIDGE_SERVER_PORT}`
+            });
+
+            ros.on('connection', function() {
+                console.log('成功连接到 ROSBridge!');
+                isConnected = true;
+                subscribeToTtsStatus(); // 连接成功后开始订阅话题
+            });
+
+            ros.on('error', function(error) {
+                console.error('连接 ROSBridge 时出错: ', error);
+                isConnected = false;
+                // 5秒后尝试重连
+                setTimeout(connectRosbridge, 5000);
+            });
+
+            ros.on('close', function() {
+                console.log('与 ROSBridge 的连接已断开.');
+                isConnected = false;
+                characterImage.src = IDLE_IMAGE_SRC; // 连接断开时恢复空闲状态
+                // 5秒后尝试重连
+                setTimeout(connectRosbridge, 5000);
+            });
+        }
+
+        function subscribeToTtsStatus() {
+            if (!ros || !isConnected) return; // 确保已连接
+
+            // 创建话题订阅者
+            ttsStatusListener = new ROSLIB.Topic({
+                ros: ros,
+                name: TTS_STATUS_TOPIC,          // 订阅的话题名 (必须和发布者一致!)
+                messageType: 'std_msgs/Bool'   // 消息类型 (布尔型: true=说话, false=空闲)
+            });
+
+            console.log(`正在订阅话题: ${TTS_STATUS_TOPIC}`);
+            ttsStatusListener.subscribe(function(message) {
+                // message.data 包含布尔值 (true 或 false)
+                console.log(`收到消息: ${message.data}`);
+                if (message.data === true) {
+                    characterImage.src = TALKING_IMAGE_SRC; // 切换到说话状态图片/动画
+                } else {
+                    characterImage.src = IDLE_IMAGE_SRC;     // 切换回空闲状态图片
+                }
+            });
+        }
+
+        // 页面加载后立即尝试连接 ROSBridge
+        connectRosbridge();
+
+    </script>
+</body>
+</html>

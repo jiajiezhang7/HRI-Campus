@@ -113,6 +113,11 @@ class ActiveQuestioningNode(Node):
         """
         发送固定问题到语音合成模块
         """
+        # 检查是否已收到电梯信息
+        if not self.received_level_info:
+            self.get_logger().error('未接收到电梯信息，无法发送问题')
+            return
+            
         # 检查是否有订阅者
         if self.check_subscribers and self.text_publisher.get_subscription_count() == 0:
             self.get_logger().warn('没有检测到订阅者，将尝试重试发送消息')
@@ -123,10 +128,7 @@ class ActiveQuestioningNode(Node):
             return
         
         # 记录使用的问题文本类型
-        if self.received_level_info:
-            self.get_logger().debug(f'使用基于电梯信息的问题文本: "{self.question_text}"')
-        else:
-            self.get_logger().warn(f'未接收到电梯信息，使用默认问题文本: "{self.question_text}"')
+        self.get_logger().info(f'使用基于电梯信息的问题文本: "{self.question_text}"')
         
         # 创建消息并发布
         msg = String()
@@ -142,10 +144,7 @@ class ActiveQuestioningNode(Node):
         # 检查是否有订阅者
         if self.text_publisher.get_subscription_count() > 0:
             # 记录使用的问题文本类型
-            if self.received_level_info:
-                self.get_logger().info(f'使用基于电梯信息的问题文本: "{self.question_text}"')
-            else:
-                self.get_logger().warn(f'未接收到电梯信息，使用默认问题文本: "{self.question_text}"')
+            self.get_logger().info(f'使用基于电梯信息的问题文本: "{self.question_text}"')
             
             # 创建消息并发布
             msg = String()
@@ -173,8 +172,46 @@ class ActiveQuestioningNode(Node):
         处理触发服务的回调
         """
         self.get_logger().info('收到触发主动发问的请求')
+        
+        # 检查是否已收到电梯信息
+        if not self.received_level_info:
+            self.get_logger().warn('尚未接收到电梯信息，等待接收...')
+            # 创建等待电梯信息的定时器
+            self.wait_count = 0
+            self.max_wait_count = 20  # 最多等待20次
+            self.wait_timer = self.create_timer(0.5, self.wait_for_level_info)  # 每0.5秒检查一次
+            # 保存响应对象，以便在收到电梯信息后返回
+            self.pending_response = response
+            return response
+        
         self.ask_question()
         return response
+        
+    def wait_for_level_info(self):
+        """
+        等待接收电梯信息
+        """
+        self.wait_count += 1
+        
+        # 检查是否已收到电梯信息
+        if self.received_level_info:
+            self.get_logger().info(f'已接收到电梯信息，发送问题')
+            # 取消等待定时器
+            self.wait_timer.cancel()
+            delattr(self, 'wait_timer')
+            # 发送问题
+            self.ask_question()
+            return
+        
+        # 检查是否达到最大等待次数
+        if self.wait_count >= self.max_wait_count:
+            self.get_logger().error(f'等待电梯信息超时({self.max_wait_count * 0.5}秒)，放弃发送问题')
+            # 取消等待定时器
+            self.wait_timer.cancel()
+            delattr(self, 'wait_timer')
+            return
+        
+        self.get_logger().warn(f'等待电梯信息 {self.wait_count}/{self.max_wait_count}...')
 
 
 def main(args=None):

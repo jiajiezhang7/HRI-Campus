@@ -145,7 +145,7 @@ class PanoramaHumanDetector(Node):
 
         # 遍历每个裁剪的图像，进行人脸检测与姿态判断
         for idx, img in enumerate(images):
-            results = self.yolo.predict(img, classes=[0])  # 只检测人
+            results = self.yolo.predict(img, classes=[0], verbose=False)  # 只检测人
 
             for result in results[0].boxes:
                 box = result.xyxy[0].cpu().numpy()

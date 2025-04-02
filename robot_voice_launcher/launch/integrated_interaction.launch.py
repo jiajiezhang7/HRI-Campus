@@ -56,21 +56,19 @@ def generate_launch_description():
     
     # 返回启动描述
     return LaunchDescription([
-        # 先启动摄像头系统
+        # 先启动摄像头系统和电梯信息发布节点
         camera_system_launch,
+        dummy_level_publisher_node,
         
-        # 等待5秒后启动语音系统
+        # 等待2秒后启动语音系统（给摄像头足够的初始化时间）
         TimerAction(
-            period=5.0,
+            period=2.0,
             actions=[voice_system_launch]
         ),
         
-        # 等待8秒后启动交互协调器节点
+        # 等待3秒后启动交互协调器节点（确保语音系统已启动）
         TimerAction(
-            period=8.0,
+            period=3.0,
             actions=[interaction_coordinator_node]
-        ),
-        
-        # 同时启动模拟电梯楼层信息发布节点
-        dummy_level_publisher_node
+        )
     ])

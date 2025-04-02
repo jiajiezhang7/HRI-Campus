@@ -126,55 +126,55 @@ def generate_launch_description():
         output='screen',
     )
     
-    # 按顺序启动所有节点
+    # 按顺序启动所有节点，减少延时提高实时性
     return LaunchDescription([
         # 参数
         enable_filter_arg,
         cutoff_frequency_arg,
         silence_threshold_arg,
         
-        # 节点
+        # 麦克风捕获节点
         mic_capture_launch,
         
-        # 等待1秒后启动语音识别
+        # 等待0.5秒后启动语音识别（确保麦克风初始化完成）
         TimerAction(
-            period=1.0,
+            period=0.5,
             actions=[speech_recognition_launch]
         ),
         
-        # 等待2秒后启动LLM
+        # 等待0.8秒后启动LLM
         TimerAction(
-            period=2.0,
+            period=0.8,
             actions=[llm_bytedance_launch]
         ),
         
-        # 等待3秒后启动语音合成
+        # 等待1.0秒后启动语音合成
         TimerAction(
-            period=3.0,
+            period=1.0,
             actions=[speech_generation_launch]
         ),
         
-        # 等待4秒后启动音频播放
+        # 等待1.2秒后启动音频播放
         TimerAction(
-            period=4.0,
+            period=1.2,
             actions=[audio_play_launch]
         ),
         
-        # 等待4.5秒后启动麦克风静音控制
+        # 等待1.3秒后启动麦克风静音控制
         TimerAction(
-            period=4.5,
+            period=1.3,
             actions=[mic_mute_launch]
         ),
         
-        # 等待5秒后启动主动发问节点
+        # 等待1.5秒后启动主动发问节点
         TimerAction(
-            period=5.0,
+            period=1.5,
             actions=[active_questioning_launch]
         ),
         
-        # 等待5秒后启动音频记录器（可选）
+        # 等待1.5秒后启动音频记录器（可选）
         # TimerAction(
-        #     period=5.0,
+        #     period=1.5,
         #     actions=[audio_recorder_node]
         # )
     ])

@@ -3,28 +3,40 @@
 <head>
     <title>机器人状态显示</title>
     <style>
-        /* 让背景变黑，内容居中 */
-        body, html { margin: 0; padding: 0; overflow: hidden; background-color: black; display: flex; justify-content: center; align-items: center; height: 100%; }
+        /* 让背景变黑，内容填满屏幕 */
+        body, html { margin: 0; padding: 0; overflow: hidden; background-color: black; height: 100%; width: 100%; }
+        
+        /* 图片容器，占据整个屏幕 */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* 图片居中显示 */
         #character {
-            /* 图片大小可以根据你的素材调整 */
-            max-width: 80%; /* 限制最大宽度 */
-            max-height: 80%; /* 限制最大高度 */
-            height: auto;
-            width: auto;
+            width: 80%;
+            height: 80%;
+            /* 如果您希望看到完整的图像而不是填满屏幕，可以将object-fit属性改为contain */
+            object-fit: contain; /* 保持纵横比并居中显示 */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* 实现完美居中 */
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
 </head>
 <body>
-    <img id="character" src="idle.png" alt="机器人状态">
+    <img id="character" src="WALL-E-3.jpg" alt="机器人状态">
 
     <script>
         // --- 用户需要配置的部分 ---
         const ROSBRIDGE_SERVER_IP = 'localhost'; // rosbridge 服务器的 IP 地址，通常是本机
         const ROSBRIDGE_SERVER_PORT = '9090'; // rosbridge 的默认端口
         const TTS_STATUS_TOPIC = '/tts_status'; // 用来接收"说话状态"的 ROS 话题名称
-        const IDLE_IMAGE_SRC = 'idle.png';     // 空闲状态图片的 **文件名或相对路径**
-        const TALKING_IMAGE_SRC = 'talking.gif'; // 说话状态动画/图片的 **文件名或相对路径**
+        const IDLE_IMAGE_SRC = 'WALL-E-3.jpg';     // 空闲状态图片的 **文件名或相对路径**
+        const TALKING_IMAGE_SRC = 'Wall-E-clean.gif'; // 说话状态动画/图片的 **文件名或相对路径**
         // --- 配置结束 ---
 
         const characterImage = document.getElementById('character');

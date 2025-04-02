@@ -39,10 +39,10 @@ def generate_launch_description():
         output='screen',
     )
     
-    # 浏览器启动命令（在第二屏幕上打开）
-    # 使用DISPLAY=:0.1指定第二个显示器
+    # 浏览器启动命令（尝试使用Chrome打开）
+    # 使用--window-position参数将窗口定位到HDMI-1显示器上
     browser_cmd = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 2 && DISPLAY=:0.1 firefox --new-window "file://$(ros2 pkg prefix robot_animation_display)/share/robot_animation_display/web/character_display.html" --kiosk'],
+        cmd=['bash', '-c', 'sleep 2 && google-chrome --new-window "file://$(ros2 pkg prefix robot_animation_display)/share/robot_animation_display/web/character_display.html" --start-fullscreen --window-position=1920,0'],
         name='browser',
         output='screen',
     )

@@ -36,7 +36,7 @@ def generate_launch_description():
     # 声明高通滤波器截止频率参数
     cutoff_frequency_arg = DeclareLaunchArgument(
         'cutoff_frequency',
-        default_value='800.0',
+        default_value='1500.0',  # 提高截止频率以更好地过滤舵机噪声
         description='Cutoff frequency for high-pass filter in Hz'
     )
     

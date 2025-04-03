@@ -1,22 +1,31 @@
 #!/usr/bin/env python3
 
+
 """
-集成交互启动文件，启动摄像头系统和语音交互系统
+总入口：集成交互启动文件，启动摄像头系统和语音交互系统
 """
 
 from launch import LaunchDescription
 from launch.actions import (
     IncludeLaunchDescription, 
     ExecuteProcess,
-    TimerAction
+    TimerAction,
+    DeclareLaunchArgument
 )
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
 from launch_ros.actions import Node
 
 def generate_launch_description():
     """生成启动描述，启动摄像头系统、语音交互系统和动画显示系统"""
+    
+    # 声明launch参数
+    scene_type_arg = DeclareLaunchArgument(
+        'scene_type',
+        default_value='elevator',
+        description='场景类型，可选值：elevator（电梯场景）或general（通用场景）'
+    )
     
     # 查找包的路径
     robot_voice_pkg_dir = FindPackageShare('robot_voice_launcher')
@@ -34,6 +43,9 @@ def generate_launch_description():
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([robot_voice_pkg_dir, 'launch', 'voice_system_stepfun.launch.py'])
         ]),
+        launch_arguments={
+            'scene_type': LaunchConfiguration('scene_type')
+        }.items()
     )
     
     # 动画显示启动文件
@@ -64,6 +76,9 @@ def generate_launch_description():
     
     # 返回启动描述
     return LaunchDescription([
+        # 添加场景类型参数
+        scene_type_arg,
+        
         # 先启动动画显示系统
         animation_display_launch,
         

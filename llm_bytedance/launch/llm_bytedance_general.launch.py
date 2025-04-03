@@ -31,8 +31,8 @@ def generate_launch_description():
     # 创建节点
     llm_bytedance_node = Node(
         package='llm_bytedance',
-        executable='llm_bytedance_node',
-        name='llm_bytedance_node',
+        executable='llm_bytedance_general_node',
+        name='llm_bytedance_general_node',
         output='screen',
         emulate_tty=True,
         parameters=[]

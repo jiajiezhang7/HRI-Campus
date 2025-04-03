@@ -50,7 +50,9 @@ CAMERAS = []
 CAMERAS.append(
     CameraConfig(
         name='insta360_air',
-        param_path=Path(USB_CAM_DIR, 'config', 'params_1.yaml')
+        param_path=Path(USB_CAM_DIR, 'config', 'params_1.yaml'),
+        remappings=None,
+        namespace=None
     )
     # Add more Camera's here and they will automatically be launched below
 )

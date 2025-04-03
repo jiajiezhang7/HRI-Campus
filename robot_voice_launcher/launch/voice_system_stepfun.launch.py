@@ -47,6 +47,13 @@ def generate_launch_description():
         description='Threshold for silence detection in speech recognition'
     )
     
+    # 声明场景类型参数
+    scene_type_arg = DeclareLaunchArgument(
+        'scene_type',
+        default_value='general',
+        description='场景类型，可选值：elevator（电梯场景）或general（通用场景）'
+    )
+    
     # 查找各个包的路径
     audio_capture_pkg_dir = FindPackageShare('audio_capture')
     speech_recognition_pkg_dir = FindPackageShare('speech_recognition_stepfun')
@@ -74,14 +81,18 @@ def generate_launch_description():
             'silence_threshold': LaunchConfiguration('silence_threshold')
         }.items()
     )
-    
-    # LLM字节跳动启动
-    llm_bytedance_launch = IncludeLaunchDescription(
+
+    # 根据场景类型选择不同的LLM字节跳动启动文件
+    llm_bytedance_elevator = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            PathJoinSubstitution([llm_bytedance_pkg_dir, 'launch', 'llm_bytedance.launch.py'])
-        ]),
-        # 这里可以添加launch参数覆盖，例如:
-        # launch_arguments={'parameter_name': 'new_value'}.items()
+            PathJoinSubstitution([llm_bytedance_pkg_dir, 'launch', 'llm_bytedance_elevator.launch.py'])
+        ])
+    )
+    
+    llm_bytedance_general = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([llm_bytedance_pkg_dir, 'launch', 'llm_bytedance_general.launch.py'])
+        ])
     )
     
     # 语音合成启动文件（使用阶跃星辰API）
@@ -111,10 +122,16 @@ def generate_launch_description():
         ])
     )
     
-    # 主动发问节点
-    active_questioning_launch = IncludeLaunchDescription(
+    # 根据场景类型选择不同的主动发问节点
+    active_questioning_elevator = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
-            PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'active_questioning.launch.py'])
+            PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'active_questioning_elevator.launch.py'])
+        ])
+    )
+    
+    active_questioning_general = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([FindPackageShare('robot_voice_launcher'), 'launch', 'active_questioning_general.launch.py'])
         ])
     )
     
@@ -132,6 +149,7 @@ def generate_launch_description():
         enable_filter_arg,
         cutoff_frequency_arg,
         silence_threshold_arg,
+        scene_type_arg,
         
         # 麦克风捕获节点
         mic_capture_launch,
@@ -142,10 +160,20 @@ def generate_launch_description():
             actions=[speech_recognition_launch]
         ),
         
-        # 等待0.8秒后启动LLM
+        # 等待0.8秒后根据场景类型启动不同的LLM
         TimerAction(
             period=0.8,
-            actions=[llm_bytedance_launch]
+            actions=[
+                # 条件判断，根据场景类型选择不同的LLM启动文件
+                GroupAction(
+                    condition=LaunchConfiguration('scene_type').perform(context=None) == 'elevator',
+                    actions=[llm_bytedance_elevator]
+                ),
+                GroupAction(
+                    condition=LaunchConfiguration('scene_type').perform(context=None) == 'general',
+                    actions=[llm_bytedance_general]
+                )
+            ]
         ),
         
         # 等待1.0秒后启动语音合成
@@ -166,10 +194,20 @@ def generate_launch_description():
             actions=[mic_mute_launch]
         ),
         
-        # 等待1.5秒后启动主动发问节点
+        # 等待1.5秒后根据场景类型启动不同的主动发问节点
         TimerAction(
             period=1.5,
-            actions=[active_questioning_launch]
+            actions=[
+                # 条件判断，根据场景类型选择不同的主动发问节点
+                GroupAction(
+                    condition=LaunchConfiguration('scene_type').perform(context=None) == 'elevator',
+                    actions=[active_questioning_elevator]
+                ),
+                GroupAction(
+                    condition=LaunchConfiguration('scene_type').perform(context=None) == 'general',
+                    actions=[active_questioning_general]
+                )
+            ]
         ),
         
         # 等待1.5秒后启动音频记录器（可选）

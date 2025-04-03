@@ -9,7 +9,7 @@ import time
 import threading
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, Empty
+from std_msgs.msg import Bool, Empty, String
 from audio_common_msgs.msg import AudioData
 
 class MicMuteNode(Node):
@@ -24,6 +24,16 @@ class MicMuteNode(Node):
         self.last_audio_time = 0.0
         self.audio_playing = False
         self.audio_lock = threading.Lock()
+        
+        # 添加主动发问标志，初始为False表示主动发问尚未触发
+        self.active_questioning_triggered = False
+        
+        # 添加交互结束标志，初始为False表示交互未结束
+        self.interaction_complete = False
+        
+        # 声明参数：是否在启动时默认静音麦克风
+        self.declare_parameter('default_mute', True)  # 默认为True，表示启动时静音麦克风
+        self.default_mute = self.get_parameter('default_mute').value
         
         # 创建发布者，发布麦克风静音状态
         self.mute_publisher = self.create_publisher(
@@ -59,10 +69,31 @@ class MicMuteNode(Node):
         # 创建定时器，定期检查音频播放状态
         self.check_timer = self.create_timer(0.5, self.check_audio_status)
         
+        # 创建订阅者，订阅主动发问状态
+        self.active_questioning_subscription = self.create_subscription(
+            String,
+            '/llm_response',
+            self.active_questioning_callback,
+            10
+        )
+        
+        # 创建订阅者，订阅交互状态
+        self.continue_detection_subscription = self.create_subscription(
+            Bool,
+            '/continue_detection',
+            self.continue_detection_callback,
+            10
+        )
+        
         self.get_logger().info('麦克风静音控制节点已初始化')
         
-        # 初始状态：麦克风启用
-        self.publish_mute_state(False)
+        # 初始状态：根据参数决定是否静音麦克风
+        if self.default_mute:
+            self.get_logger().info('初始化时静音麦克风，等待主动发问触发')
+            self.publish_mute_state(True)
+        else:
+            self.get_logger().info('初始化时启用麦克风')
+            self.publish_mute_state(False)
         
     def mute_control_callback(self, msg):
         """
@@ -75,6 +106,16 @@ class MicMuteNode(Node):
                 self.last_audio_time = time.time()
             self.publish_mute_state(True)
         else:
+            # 如果交互已结束，则忽略解除静音的请求
+            if self.interaction_complete:
+                self.get_logger().info('交互已结束，忽略解除静音请求')
+                return
+                
+            # 如果主动发问尚未触发且默认静音，则忽略解除静音的请求
+            if self.default_mute and not self.active_questioning_triggered:
+                self.get_logger().info('主动发问尚未触发，忽略解除静音请求')
+                return
+                
             # self.get_logger().info('收到解除静音信号')
             with self.audio_lock:
                 self.audio_playing = False
@@ -102,10 +143,16 @@ class MicMuteNode(Node):
             self.audio_playing = False
             self.get_logger().info(f'设置 audio_playing = False, 当前 is_muted = {self.is_muted}')
         
+        # 如果交互已结束，保持麦克风静音
+        if self.interaction_complete:
+            self.get_logger().info('交互已结束，保持麦克风静音')
+            return
+        
         # 音频播放完成，立即恢复麦克风（不在锁内调用，避免死锁）
-        # 直接发布解除静音状态，不使用 unmute_microphone 方法
-        self.get_logger().info('音频播放完成，直接解除麦克风静音')
-        self.publish_mute_state(False)
+        # 如果主动发问已触发或默认不静音，则解除静音
+        if self.active_questioning_triggered or not self.default_mute:
+            self.get_logger().info('音频播放完成，直接解除麦克风静音')
+            self.publish_mute_state(False)
     
     def check_audio_status(self):
         """
@@ -117,8 +164,14 @@ class MicMuteNode(Node):
                 self.get_logger().info('超过3秒未收到音频数据，认为播放已结束')
                 self.audio_playing = False
         
-        # 如果检测到播放结束，直接解除静音（不在锁内调用，避免死锁）
-        if not self.audio_playing and self.is_muted:
+        # 如果交互已结束，确保麦克风保持静音状态
+        if self.interaction_complete and not self.is_muted:
+            self.get_logger().info('交互已结束，确保麦克风静音')
+            self.publish_mute_state(True)
+            return
+        
+        # 如果检测到播放结束且主动发问已触发或默认不静音，且交互未结束，则解除静音
+        if not self.audio_playing and self.is_muted and (self.active_questioning_triggered or not self.default_mute) and not self.interaction_complete:
             self.get_logger().info('检测到播放结束，直接解除麦克风静音')
             self.publish_mute_state(False)
     
@@ -137,6 +190,37 @@ class MicMuteNode(Node):
         
         # 清除定时器（为了兼容性保留这行代码）
         self.mute_timer = None
+    
+    def continue_detection_callback(self, msg):
+        """
+        处理继续检测标志，当continue_detection=false时，表示交互已结束
+        """
+        # 当continue_detection为false时，表示交互已结束
+        if not msg.data and not self.interaction_complete:
+            self.get_logger().info('检测到continue_detection=false，交互已结束，静音麦克风')
+            self.interaction_complete = True
+            self.publish_mute_state(True)  # 立即静音麦克风
+        # 当continue_detection为true且交互已结束时，重置交互状态
+        elif msg.data and self.interaction_complete:
+            self.get_logger().info('检测到continue_detection=true，重置交互状态')
+            self.interaction_complete = False
+            # 根据当前状态决定是否解除静音
+            if not self.audio_playing and (self.active_questioning_triggered or not self.default_mute):
+                self.get_logger().info('重置交互状态后，解除麦克风静音')
+                self.publish_mute_state(False)
+    
+    def active_questioning_callback(self, msg):
+        """
+        处理主动发问消息，当检测到主动发问消息时，标记主动发问已触发
+        """
+        if not self.active_questioning_triggered:
+            self.get_logger().info('检测到主动发问消息，标记主动发问已触发')
+            self.active_questioning_triggered = True
+            
+            # 如果当前是静音状态，且不是因为音频播放导致的静音，且交互未结束，则解除静音
+            if self.is_muted and not self.audio_playing and not self.interaction_complete:
+                self.get_logger().info('主动发问已触发，解除麦克风静音')
+                self.publish_mute_state(False)
     
     def publish_mute_state(self, mute_state):
         """

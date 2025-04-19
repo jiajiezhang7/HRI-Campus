@@ -55,7 +55,7 @@ class ActiveQuestioningState(EventState):
         
         # 创建订阅者
         self._llm_response_sub = ProxySubscriberCached()
-        self._llm_response_sub.create_subscription(llm_response_topic, String)
+        self._llm_response_sub.subscribe(llm_response_topic, String)
 
     def execute(self, userdata):
         """

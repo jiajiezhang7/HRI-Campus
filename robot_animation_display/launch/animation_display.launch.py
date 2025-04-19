@@ -32,10 +32,12 @@ def generate_launch_description():
     )
     
     # rosbridge_server节点
-    rosbridge_server_node = ExecuteProcess(
-        cmd=['ros2', 'run', 'rosbridge_server', 'rosbridge_websocket', '--ros-args', '-p', 'port:=', LaunchConfiguration('rosbridge_port')],
+    rosbridge_server_node = Node(
+        package='rosbridge_server',
+        executable='rosbridge_websocket',
         name='rosbridge_websocket',
         output='screen',
+        parameters=[{'port': LaunchConfiguration('rosbridge_port')}]
     )
     
     # TTS状态发布节点

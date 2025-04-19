@@ -55,7 +55,7 @@ class SpeechGenerationState(EventState):
         
         # 创建订阅者
         self._audio_complete_sub = ProxySubscriberCached()
-        self._audio_complete_sub.create_subscription(audio_complete_topic, Empty)
+        self._audio_complete_sub.subscribe(audio_complete_topic, Empty)
         
         # 创建发布者
         self._llm_response_pub = ProxyPublisher()

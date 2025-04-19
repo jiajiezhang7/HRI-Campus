@@ -71,13 +71,13 @@ class ElevatorInteractionState(EventState):
         
         # 创建订阅者
         self._face_angle_sub = ProxySubscriberCached()
-        self._face_angle_sub.create_subscription(face_angle_topic, Float32)
+        self._face_angle_sub.subscribe(face_angle_topic, Float32)
         
         self._llm_response_sub = ProxySubscriberCached()
-        self._llm_response_sub.create_subscription(llm_response_topic, String)
+        self._llm_response_sub.subscribe(llm_response_topic, String)
         
         self._playback_complete_sub = ProxySubscriberCached()
-        self._playback_complete_sub.create_subscription(audio_complete_topic, Empty)
+        self._playback_complete_sub.subscribe(audio_complete_topic, Empty)
         
         # 创建服务客户端
         self._trigger_question_client = ProxyServiceCaller()

@@ -6,7 +6,6 @@
 """
 
 from flexbe_core import Behavior, Autonomy
-from flexbe_core.ros_state import RosState
 from flexbe_core import OperatableStateMachine, Logger, ConcurrencyContainer, PriorityContainer
 from flexbe_states.log_state import LogState
 from flexbe_states.operator_decision_state import OperatorDecisionState
@@ -57,13 +56,13 @@ class ElevatorInteractionBehaviorSM(Behavior):
 
     def create(self):
         # 获取参数
-        cmd_vel_topic = self.get_parameter('cmd_vel_topic')
-        face_angle_topic = self.get_parameter('face_angle_topic')
-        llm_response_topic = self.get_parameter('llm_response_topic')
-        audio_complete_topic = self.get_parameter('audio_complete_topic')
-        continue_detection_topic = self.get_parameter('continue_detection_topic')
-        active_questioning_service = self.get_parameter('active_questioning_service')
-        interaction_timeout = self.get_parameter('interaction_timeout')
+        cmd_vel_topic = self.cmd_vel_topic
+        face_angle_topic = self.face_angle_topic
+        llm_response_topic = self.llm_response_topic
+        audio_complete_topic = self.audio_complete_topic
+        continue_detection_topic = self.continue_detection_topic
+        active_questioning_service = self.active_questioning_service
+        interaction_timeout = self.interaction_timeout
 
         # 创建状态机
         sm = OperatableStateMachine(outcomes=['finished', 'failed'])

@@ -50,10 +50,10 @@ class HumanDetectionState(EventState):
         
         # 创建订阅者
         self._face_angle_sub = ProxySubscriberCached()
-        self._face_angle_sub.create_subscription(face_angle_topic, Float32)
+        self._face_angle_sub.subscribe(face_angle_topic, Float32)
         
         self._continue_detection_sub = ProxySubscriberCached()
-        self._continue_detection_sub.create_subscription(continue_detection_topic, Bool)
+        self._continue_detection_sub.subscribe(continue_detection_topic, Bool)
 
     def execute(self, userdata):
         """

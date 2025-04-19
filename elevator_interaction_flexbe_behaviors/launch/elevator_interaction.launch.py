@@ -112,10 +112,15 @@ def generate_launch_description():
                 name='webui_node',
                 parameters=[{'port': 8000}]  # 使用默认端口
             ),
-            # 启动浏览器打开FlexBE WebUI
-            ExecuteProcess(
-                cmd=['python3', '-m', 'webbrowser', '-n', 'http://127.0.0.1:8000'],
-                name='open_flexbe_webui'
+            # 延迟打开浏览器，确保UI服务已启动
+            TimerAction(
+                period=2.0,
+                actions=[
+                    ExecuteProcess(
+                        cmd=['python3', '-m', 'webbrowser', '-n', 'http://127.0.0.1:8000'],
+                        name='open_flexbe_webui'
+                    )
+                ]
             ),
             # 启动FlexBE行为
             Node(

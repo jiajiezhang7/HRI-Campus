@@ -52,10 +52,10 @@ class SpeechRecognitionState(EventState):
         
         # 创建订阅者
         self._audio_sub = ProxySubscriberCached()
-        self._audio_sub.create_subscription(audio_topic, AudioData)
+        self._audio_sub.subscribe(audio_topic, AudioData)
         
         self._speech_text_sub = ProxySubscriberCached()
-        self._speech_text_sub.create_subscription(speech_text_topic, String)
+        self._speech_text_sub.subscribe(speech_text_topic, String)
 
     def execute(self, userdata):
         """

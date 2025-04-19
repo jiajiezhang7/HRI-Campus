@@ -41,21 +41,22 @@ class ActiveQuestioningState(EventState):
         self._llm_response_topic = llm_response_topic
         self._timeout = timeout
         
-        # 状态标志
-        self._question_asked = False
+        # 初始化变量
+        self._start_time = None
         self._service_called = False
+        self._question_asked = False
         
-        # 初始化代理
-        ProxyServiceCaller.initialize(ActiveQuestioningState._node)
-        ProxySubscriberCached.initialize(ActiveQuestioningState._node)
-        
-        # 创建服务客户端
-        self._trigger_question_client = ProxyServiceCaller()
-        self._trigger_question_client.create_client(active_questioning_service, Empty)
-        
-        # 创建订阅者
-        self._llm_response_sub = ProxySubscriberCached()
-        self._llm_response_sub.subscribe(llm_response_topic, String)
+        # 延迟创建服务客户端和话题订阅者到on_start
+        self._trigger_question_client = None
+        self._llm_response_sub = None
+
+    def on_start(self):
+        """
+        当行为开始执行时调用，用于初始化ROS相关组件
+        """
+        # 创建服务客户端和话题订阅者
+        self._trigger_question_client = ProxyServiceCaller({self._active_questioning_service: Empty})
+        self._llm_response_sub = ProxySubscriberCached({self._llm_response_topic: String})
 
     def execute(self, userdata):
         """

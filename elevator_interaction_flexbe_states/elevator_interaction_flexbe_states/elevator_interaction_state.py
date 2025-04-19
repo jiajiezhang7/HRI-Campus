@@ -67,7 +67,7 @@ class ElevatorInteractionState(EventState):
         
         # 创建发布者
         self._detection_pub = ProxyPublisher()
-        self._detection_pub.createPublisher(continue_detection_topic, Bool)
+        self._detection_pub.create_publisher(continue_detection_topic, Bool)
         
         # 创建订阅者
         self._face_angle_sub = ProxySubscriberCached()
@@ -81,7 +81,7 @@ class ElevatorInteractionState(EventState):
         
         # 创建服务客户端
         self._trigger_question_client = ProxyServiceCaller()
-        self._trigger_question_client.create_client(active_questioning_service, EmptyService)
+        self._trigger_question_client.setup_service(active_questioning_service, EmptyService)
 
     def execute(self, userdata):
         """

@@ -272,7 +272,7 @@ class ElevatorInteractionBehaviorSM(Behavior):
             # 交互完成日志
             OperatableStateMachine.add('InteractionCompleteLog',
                                       LogState(text="电梯交互成功完成", severity=Logger.REPORT_HINT),
-                                      transitions={'done': 'InteractionMode'},
+                                      transitions={'done': 'finished'},
                                       autonomy={'done': Autonomy.Off})
 
             # 交互失败日志

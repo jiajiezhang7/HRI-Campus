@@ -59,7 +59,7 @@ class SpeechGenerationState(EventState):
         
         # 创建发布者
         self._llm_response_pub = ProxyPublisher()
-        self._llm_response_pub.createPublisher(llm_response_topic, String)
+        self._llm_response_pub.create_publisher(llm_response_topic, String)
 
     def execute(self, userdata):
         """

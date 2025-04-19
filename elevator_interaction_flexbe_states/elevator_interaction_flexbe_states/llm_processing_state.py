@@ -52,11 +52,11 @@ class LLMProcessingState(EventState):
         
         # 创建订阅者
         self._llm_response_sub = ProxySubscriberCached()
-        self._llm_response_sub.create_subscription(llm_response_topic, String)
+        self._llm_response_sub.subscribe(llm_response_topic, String)
         
         # 创建发布者
         self._speech_text_pub = ProxyPublisher()
-        self._speech_text_pub.createPublisher(speech_text_topic, String)
+        self._speech_text_pub.create_publisher(speech_text_topic, String)
 
     def execute(self, userdata):
         """

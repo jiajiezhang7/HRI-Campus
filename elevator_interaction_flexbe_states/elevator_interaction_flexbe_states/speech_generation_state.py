@@ -60,6 +60,10 @@ class SpeechGenerationState(EventState):
         # 创建发布者
         self._llm_response_pub = ProxyPublisher()
         self._llm_response_pub.create_publisher(llm_response_topic, String)
+        
+        # 创建音频生成发布者
+        self._audio_generated_pub = ProxyPublisher()
+        self._audio_generated_pub.create_publisher(audio_generated_topic, AudioData)
 
     def execute(self, userdata):
         """
@@ -97,6 +101,12 @@ class SpeechGenerationState(EventState):
             msg.data = userdata.llm_response
             self._llm_response_pub.publish(self._llm_response_topic, msg)
             Logger.loginfo(f'发布LLM响应: {userdata.llm_response}')
+            
+            # 发布空的音频数据消息到/audio_generated话题，触发TTS状态发布节点
+            audio_msg = AudioData()
+            self._audio_generated_pub.publish(self._audio_generated_topic, audio_msg)
+            Logger.loginfo('发布音频生成消息，触发动画显示')
+            
             self._speech_generated = True
         
         Logger.loginfo('开始语音合成')

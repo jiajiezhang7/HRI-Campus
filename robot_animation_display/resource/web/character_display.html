@@ -33,7 +33,7 @@
     <script>
         // --- 用户需要配置的部分 ---
         const ROSBRIDGE_SERVER_IP = 'localhost'; // rosbridge 服务器的 IP 地址，通常是本机
-        const ROSBRIDGE_SERVER_PORT = '9090'; // rosbridge 的默认端口
+        const ROSBRIDGE_SERVER_PORT = '9092'; // rosbridge 的端口，与启动文件中保持一致
         const TTS_STATUS_TOPIC = '/tts_status'; // 用来接收"说话状态"的 ROS 话题名称
         const IDLE_IMAGE_SRC = 'WALL-E-3.jpg';     // 空闲状态图片的 **文件名或相对路径**
         const TALKING_IMAGE_SRC = 'Wall-E-clean.gif'; // 说话状态动画/图片的 **文件名或相对路径**

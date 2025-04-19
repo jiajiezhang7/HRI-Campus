@@ -27,7 +27,7 @@ def generate_launch_description():
     # 添加rosbridge端口参数
     rosbridge_port_arg = DeclareLaunchArgument(
         'rosbridge_port',
-        default_value='9090',
+        default_value='9092',
         description='Port for rosbridge websocket'
     )
     
@@ -51,7 +51,7 @@ def generate_launch_description():
     # 浏览器启动命令（尝试使用Chrome打开）
     # 使用--window-position参数将窗口定位到HDMI-1显示器上
     browser_cmd = ExecuteProcess(
-        cmd=['bash', '-c', 'sleep 2 && google-chrome --new-window "file://$(ros2 pkg prefix robot_animation_display)/share/robot_animation_display/web/character_display.html" --start-fullscreen --window-position=1920,0'],
+        cmd=['bash', '-c', 'sleep 2 && google-chrome --new-window "file://$(ros2 pkg prefix robot_animation_display)/share/robot_animation_display/web/character_display.html" --start-fullscreen --window-position=1920,0 --user-data-dir=/tmp/chrome_data'],
         name='browser',
         output='screen',
     )

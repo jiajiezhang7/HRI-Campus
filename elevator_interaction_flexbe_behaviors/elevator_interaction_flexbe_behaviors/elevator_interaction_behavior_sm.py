@@ -96,7 +96,8 @@ class ElevatorInteractionBehaviorSM(Behavior):
                                                  'timeout': 'QuestioningTimeoutLog'},
                                       autonomy={'question_asked': Autonomy.Off,
                                                'service_unavailable': Autonomy.Off,
-                                               'timeout': Autonomy.Off})
+                                               'timeout': Autonomy.Off},
+                                      remapping={'llm_response': 'llm_response'})
 
             # 服务不可用日志
             OperatableStateMachine.add('ServiceUnavailableLog',

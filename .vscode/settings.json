@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./elevator_interaction_flexbe_states"
+    ]
+}

@@ -11,9 +11,9 @@
 
 import os
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, TimerAction
+from launch.actions import ExecuteProcess, TimerAction, DeclareLaunchArgument
 from launch_ros.actions import Node
-from launch.substitutions import PathJoinSubstitution
+from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
@@ -24,9 +24,16 @@ def generate_launch_description():
     web_dir = PathJoinSubstitution([package_share_dir, 'web'])
     html_path = PathJoinSubstitution([web_dir, 'character_display.html'])
     
+    # 添加rosbridge端口参数
+    rosbridge_port_arg = DeclareLaunchArgument(
+        'rosbridge_port',
+        default_value='9090',
+        description='Port for rosbridge websocket'
+    )
+    
     # rosbridge_server节点
     rosbridge_server_node = ExecuteProcess(
-        cmd=['ros2', 'run', 'rosbridge_server', 'rosbridge_websocket'],
+        cmd=['ros2', 'run', 'rosbridge_server', 'rosbridge_websocket', '--ros-args', '-p', 'port:=', LaunchConfiguration('rosbridge_port')],
         name='rosbridge_websocket',
         output='screen',
     )
@@ -49,6 +56,7 @@ def generate_launch_description():
     
     # 先启动rosbridge和TTS状态发布节点，然后再启动浏览器
     return LaunchDescription([
+        rosbridge_port_arg,
         rosbridge_server_node,
         tts_status_publisher_node,
         # 延迟2秒启动浏览器，确保其他节点已启动

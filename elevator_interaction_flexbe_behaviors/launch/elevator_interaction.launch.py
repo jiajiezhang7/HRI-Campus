@@ -105,12 +105,17 @@ def generate_launch_description():
                 name='behavior_mirror',
                 parameters=[{'use_sim_time': use_sim_time}]
             ),
-            # 启动FlexBE UI
+            # 启动FlexBE UI Server
             Node(
                 package='flexbe_webui',
                 executable='webui_node',
                 name='webui_node',
-                parameters=[{'port': 9091}]  # 使用不同的端口
+                parameters=[{'port': 8000}]  # 使用默认端口
+            ),
+            # 启动浏览器打开FlexBE WebUI
+            ExecuteProcess(
+                cmd=['python3', '-m', 'webbrowser', '-n', 'http://127.0.0.1:8000'],
+                name='open_flexbe_webui'
             ),
             # 启动FlexBE行为
             Node(

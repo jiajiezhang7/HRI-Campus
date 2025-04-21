@@ -10,7 +10,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy, QoSDurabilityPolicy
 from std_msgs.msg import String
-from std_srvs.srv import Empty, SetBool
+from std_srvs.srv import Empty, SetBool, Trigger
 import time
 import random
 import json
@@ -71,25 +71,33 @@ class ActiveQuestioningGeneralNode(Node):
             ]
         }
         
-        # 当前场景类型
-        self.current_scene = 'greeting'
+        # 当前场景类型（随机选择一个场景类型）
+        self.current_scene = random.choice(list(self.scene_templates.keys()))
         
         # 当前问题文本
-        self.question_text = self.get_random_question('greeting')
+        self.question_text = self.get_random_question(self.current_scene)
         
         # 声明参数
         self.declare_parameter('delay', 1.0)  # 延迟发问的时间（秒）
         self.declare_parameter('check_subscribers', True)  # 是否检查订阅者
         self.declare_parameter('max_retries', 10)  # 最大重试次数
         self.declare_parameter('retry_interval', 1.0)  # 重试间隔（秒）
-        self.declare_parameter('default_scene', 'greeting')  # 默认场景类型
+        self.declare_parameter('default_scene', 'random')  # 默认场景类型，设为'random'表示随机选择
         
         # 获取参数
         self.delay = self.get_parameter('delay').value
         self.check_subscribers = self.get_parameter('check_subscribers').value
         self.max_retries = self.get_parameter('max_retries').value
         self.retry_interval = self.get_parameter('retry_interval').value
-        self.current_scene = self.get_parameter('default_scene').value
+        
+        # 如果设置了default_scene参数且不是'random'，则使用该参数值
+        default_scene = self.get_parameter('default_scene').value
+        if default_scene != 'random' and default_scene in self.scene_templates:
+            self.current_scene = default_scene
+            self.question_text = self.get_random_question(self.current_scene)
+            self.get_logger().info(f'使用指定的场景类型: {self.current_scene}')
+        else:
+            self.get_logger().info(f'使用随机选择的场景类型: {self.current_scene}')
         
         # 创建服务，允许外部触发发问
         self.trigger_service = self.create_service(
@@ -107,7 +115,7 @@ class ActiveQuestioningGeneralNode(Node):
         
         # 创建服务，允许设置自定义问题
         self.set_question_service = self.create_service(
-            String,
+            Trigger,
             '/active_questioning/set_question',
             self.set_question_callback
         )
@@ -122,7 +130,7 @@ class ActiveQuestioningGeneralNode(Node):
             return random.choice(self.scene_templates[scene_type])
         else:
             self.get_logger().warn(f'未找到场景类型 "{scene_type}" 的问题模板，使用默认问候语')
-            return "Hello, I'm Xiao Zhi, the campus guide robot. How can I help you today?"
+            return "Hello, I'm WALL-E, the campus guide robot. How can I help you today?"
     
     def ask_question(self):
         """
@@ -227,16 +235,17 @@ class ActiveQuestioningGeneralNode(Node):
     def set_question_callback(self, request, response):
         """
         处理设置自定义问题的回调
+        注意：由于使用Trigger服务类型，自定义问题需要通过其他方式传递
+        例如：可以使用ROS2参数或者发布到特定话题
         """
-        custom_question = request.data
+        # 这里我们使用一个预设的问题作为示例
+        # 在实际应用中，你可能需要添加一个额外的参数或话题来设置自定义问题
+        custom_question = "Hello, I'm Xiao Zhi, the campus guide robot. How can I help you today?"
         
-        if custom_question:
-            self.question_text = custom_question
-            self.get_logger().info(f'已设置自定义问题: {custom_question}')
-            response.data = "Successfully set custom question"
-        else:
-            self.get_logger().warn('收到空的自定义问题，忽略')
-            response.data = "Custom question cannot be empty"
+        self.question_text = custom_question
+        self.get_logger().info(f'已设置自定义问题: {custom_question}')
+        response.success = True
+        response.message = "Successfully set custom question"
         
         return response
 

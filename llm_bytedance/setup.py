@@ -25,7 +25,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'llm_bytedance_node = llm_bytedance.llm_bytedance_node:main',
+            'llm_bytedance_general_node = llm_bytedance.llm_bytedance_general_node:main',
         ],
     },
 )

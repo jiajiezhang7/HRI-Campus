@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'elevator_interaction_flexbe_states'
+package_name = 'general_dialogue_flexbe_states'
 
 setup(
     name=package_name,
@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='agilex03',
     maintainer_email='jerryzhang7@126.com',
-    description='FlexBE states for elevator interaction system',
+    description='FlexBE states for general dialogue system',
     license='Apache License 2.0',
     tests_require=['pytest'],
     entry_points={

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-启动电梯交互FlexBE行为
+启动通用对话系统FlexBE行为
 """
 
 import os
@@ -27,7 +27,7 @@ def generate_launch_description():
 
     # 启动文件路径
     camera_system_launch = PathJoinSubstitution([robot_voice_launcher_share, 'launch', 'camera_system.launch.py'])
-    voice_system_launch = PathJoinSubstitution([robot_voice_launcher_share, 'launch', 'voice_system_stepfun.launch.py'])
+    voice_system_launch = PathJoinSubstitution([robot_voice_launcher_share, 'launch', 'general_voice_system_stepfun.launch.py'])
     animation_display_launch = PathJoinSubstitution([robot_animation_display_share, 'launch', 'animation_display.launch.py'])
 
     # 创建启动描述
@@ -56,22 +56,13 @@ def generate_launch_description():
         }.items()
     ))
 
-    # 等待1秒后启动摄像头系统和电梯信息发布节点
+    # 等待1秒后启动摄像头系统
     ld.add_action(TimerAction(
         period=1.0,
         actions=[
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([camera_system_launch]),
                 launch_arguments={'use_sim_time': use_sim_time}.items()
-            ),
-            Node(
-                package='dummy_level_publisher',
-                executable='dummy_level_publisher',
-                name='dummy_level_publisher_node',
-                output='screen',
-                parameters=[{'use_sim_time': use_sim_time},
-                            {'publish_frequency': 5.0}
-                ]
             )
         ]
     ))
@@ -83,6 +74,19 @@ def generate_launch_description():
             IncludeLaunchDescription(
                 PythonLaunchDescriptionSource([voice_system_launch]),
                 launch_arguments={'use_sim_time': use_sim_time}.items()
+            )
+        ]
+    ))
+
+    # 等待5秒后启动交互协调器节点
+    ld.add_action(TimerAction(
+        period=5.0,
+        actions=[
+            Node(
+                package='robot_voice_launcher',
+                executable='interaction_coordinator_node',
+                name='interaction_coordinator_node',
+                output='screen'
             )
         ]
     ))
@@ -117,7 +121,7 @@ def generate_launch_description():
                 period=2.0,
                 actions=[
                     ExecuteProcess(
-                        cmd=['python3', '-m', 'webbrowser', '-n', 'http://127.0.0.1:8000'],
+                        cmd=['bash', '-c', 'google-chrome --new-window "http://127.0.0.1:8000" --window-position=0,0'],
                         name='open_flexbe_webui'
                     )
                 ]
@@ -128,7 +132,7 @@ def generate_launch_description():
                 executable='be_launcher',
                 name='behavior_launcher',
                 parameters=[{'use_sim_time': use_sim_time}],
-                arguments=['-b', 'Elevator Interaction Behavior']
+                arguments=['-b', 'General Dialogue Behavior']
             )
         ]
     ))

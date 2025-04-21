@@ -20,7 +20,6 @@ class SpeechGenerationState(EventState):
     该状态接收LLM响应，并将合成的语音发布到指定话题。
 
     -- llm_response_topic string    LLM响应话题名称
-    -- audio_generated_topic string 合成音频话题名称
     -- audio_complete_topic string  音频播放完成话题名称
     -- timeout           float     超时时间（秒）
 
@@ -30,7 +29,6 @@ class SpeechGenerationState(EventState):
     """
 
     def __init__(self, llm_response_topic='/llm_response',
-                 audio_generated_topic='/audio_generated',
                  audio_complete_topic='/audio_playback_complete',
                  timeout=30.0):
         """初始化状态"""
@@ -41,7 +39,6 @@ class SpeechGenerationState(EventState):
         
         # 存储参数
         self._llm_response_topic = llm_response_topic
-        self._audio_generated_topic = audio_generated_topic
         self._audio_complete_topic = audio_complete_topic
         self._timeout = timeout
         
@@ -59,11 +56,6 @@ class SpeechGenerationState(EventState):
         
         # 创建发布者
         self._llm_response_pub = ProxyPublisher()
-        self._llm_response_pub.create_publisher(llm_response_topic, String)
-        
-        # 创建音频生成发布者
-        self._audio_generated_pub = ProxyPublisher()
-        self._audio_generated_pub.create_publisher(audio_generated_topic, AudioData)
 
     def execute(self, userdata):
         """
@@ -78,7 +70,7 @@ class SpeechGenerationState(EventState):
         # 检查是否收到音频播放完成事件
         if self._audio_complete_sub.has_msg(self._audio_complete_topic):
             self._audio_complete_sub.remove_last_msg(self._audio_complete_topic)
-            Logger.loginfo('音频播放完成')
+            Logger.loginfo('收到音频播放完成事件')
             self._playback_complete = True
             return 'generated'
         
@@ -101,13 +93,6 @@ class SpeechGenerationState(EventState):
             msg.data = userdata.llm_response
             self._llm_response_pub.publish(self._llm_response_topic, msg)
             Logger.loginfo(f'发布LLM响应: {userdata.llm_response}')
-            
-            # 发布空的音频数据消息到/audio_generated话题，触发TTS状态发布节点
-            audio_msg = AudioData()
-            self._audio_generated_pub.publish(self._audio_generated_topic, audio_msg)
-            Logger.loginfo('发布音频生成消息，触发动画显示')
-            
-            self._speech_generated = True
         
         Logger.loginfo('开始语音合成')
 

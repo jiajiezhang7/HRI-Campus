@@ -25,6 +25,8 @@ class LLMProcessingState(EventState):
     <= processed         处理成功
     <= not_processed     未处理
     <= timeout           超时
+
+    >> llm_response      string    LLM响应文本
     """
 
     def __init__(self, speech_text_topic='/speech_to_text',
@@ -56,7 +58,6 @@ class LLMProcessingState(EventState):
         
         # 创建发布者
         self._speech_text_pub = ProxyPublisher()
-        self._speech_text_pub.create_publisher(speech_text_topic, String)
 
     def execute(self, userdata):
         """

@@ -26,6 +26,8 @@ class SpeechRecognitionState(EventState):
     <= recognized        识别成功
     <= not_recognized    未识别到语音
     <= timeout           超时
+
+    >> recognized_text   string    识别到的文本
     """
 
     def __init__(self, audio_topic='/audio/audio',

@@ -1,17 +1,16 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>elevator_interaction_flexbe_behaviors</name>
+  <name>general_dialogue_flexbe_behaviors</name>
   <version>0.0.0</version>
-  <description>FlexBE behaviors for elevator interaction system</description>
+  <description>FlexBE behaviors for general dialogue system</description>
   <maintainer email="jerryzhang7@126.com">agilex03</maintainer>
   <license>Apache License 2.0</license>
 
-  <depend>flexbe_core</depend>
   <depend>rclpy</depend>
-  <depend>std_msgs</depend>
-  <depend>elevator_interaction_flexbe_states</depend>
+  <depend>flexbe_core</depend>
   <depend>flexbe_states</depend>
+  <depend>general_dialogue_flexbe_states</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

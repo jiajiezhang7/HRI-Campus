@@ -281,6 +281,11 @@ class SpeechRecognitionStepfunNode(Node):
                         recognized_text = result['text']
                         self.get_logger().info(f"识别结果: {recognized_text}")
                         
+                        # 检查识别结果是否包含"嗯"
+                        if "嗯" in recognized_text:
+                            self.get_logger().info(f"识别结果包含'嗯'，忽略本次识别结果")
+                            return
+                        
                         # 发布识别结果
                         msg = String()
                         msg.data = recognized_text

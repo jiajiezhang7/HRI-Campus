@@ -6,9 +6,10 @@
 """
 
 import rclpy
-from flexbe_core import Behavior, Logger
+from flexbe_core import Behavior, Logger, Autonomy
 from flexbe_core.proxy import ProxySubscriberCached
 from flexbe_core.core.operatable_state_machine import OperatableStateMachine
+from flexbe_core import ConcurrencyContainer, PriorityContainer
 from flexbe_states.log_state import LogState
 from flexbe_states.operator_decision_state import OperatorDecisionState
 
@@ -49,9 +50,25 @@ class GeneralDialogueBehaviorSM(Behavior):
         self._continue_detection_topic = '/continue_detection'
         self._active_questioning_service = '/active_questioning/trigger_question'
         self._interaction_timeout = 300.0
+        
+        # 初始化ROS组件
+        OperatableStateMachine.initialize_ros(node)
+        ConcurrencyContainer.initialize_ros(node)
+        PriorityContainer.initialize_ros(node)
+        Logger.initialize(node)
+        
+        # 初始化状态
+        AnimationDisplayState.initialize_ros(node)
+        CameraSystemState.initialize_ros(node)
+        SpeechRecognitionState.initialize_ros(node)
+        LLMProcessingState.initialize_ros(node)
+        SpeechGenerationState.initialize_ros(node)
+        ActiveQuestioningState.initialize_ros(node)
+        GeneralDialogueState.initialize_ros(node)
+        LogState.initialize_ros(node)
+        OperatorDecisionState.initialize_ros(node)
 
     def create(self):
-        OperatableStateMachine.initialize_ros(self.node)
         # 使用参数默认值或从配置获取的值
         face_angle_topic = self._face_angle_topic
         llm_response_topic = self._llm_response_topic
@@ -62,17 +79,6 @@ class GeneralDialogueBehaviorSM(Behavior):
 
         # 创建状态机
         sm = OperatableStateMachine(outcomes=['finished', 'failed'])
-
-        # 初始化状态
-        AnimationDisplayState.initialize_ros(self.node)
-        CameraSystemState.initialize_ros(self.node)
-        SpeechRecognitionState.initialize_ros(self.node)
-        LLMProcessingState.initialize_ros(self.node)
-        SpeechGenerationState.initialize_ros(self.node)
-        ActiveQuestioningState.initialize_ros(self.node)
-        GeneralDialogueState.initialize_ros(self.node)
-        LogState.initialize_ros(self.node)
-        OperatorDecisionState.initialize_ros(self.node)
 
         # 创建详细交互子状态机
         sm_detailed_interaction = self.create_detailed_interaction_sm(
@@ -90,7 +96,7 @@ class GeneralDialogueBehaviorSM(Behavior):
             sm.add('InitLog',
                   LogState(text="启动通用对话系统", severity=Logger.REPORT_HINT),
                   transitions={'done': 'InteractionMode'},
-                  autonomy={'done': 0})
+                  autonomy={'done': Autonomy.Off})
 
             # 操作员选择交互模式
             sm.add('InteractionMode',
@@ -99,7 +105,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                   transitions={'Autonomous': 'FullAutonomyInteraction',
                               'Detailed': 'DetailedInteraction',
                               'Quit': 'finished'},
-                  autonomy={'Autonomous': 0, 'Detailed': 0, 'Quit': 0})
+                  autonomy={'Autonomous': Autonomy.Off, 'Detailed': Autonomy.Off, 'Quit': Autonomy.Off})
 
             # 全自主交互模式
             sm.add('FullAutonomyInteraction',
@@ -113,7 +119,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                   transitions={'interaction_complete': 'InteractionCompleteLog',
                              'interaction_failed': 'InteractionFailedLog',
                              'timeout': 'TimeoutLog'},
-                  autonomy={'interaction_complete': 0, 'interaction_failed': 0, 'timeout': 0})
+                  autonomy={'interaction_complete': Autonomy.Off, 'interaction_failed': Autonomy.Off, 'timeout': Autonomy.Off})
 
             # 详细交互模式
             sm.add('DetailedInteraction',
@@ -121,25 +127,25 @@ class GeneralDialogueBehaviorSM(Behavior):
                   transitions={'interaction_complete': 'InteractionCompleteLog',
                              'interaction_failed': 'InteractionFailedLog',
                              'timeout': 'TimeoutLog'},
-                  autonomy={'interaction_complete': 0, 'interaction_failed': 0, 'timeout': 0})
+                  autonomy={'interaction_complete': Autonomy.Off, 'interaction_failed': Autonomy.Off, 'timeout': Autonomy.Off})
 
             # 交互完成日志
             sm.add('InteractionCompleteLog',
                   LogState(text="通用对话系统交互成功完成", severity=Logger.REPORT_HINT),
                   transitions={'done': 'finished'},
-                  autonomy={'done': 0})
+                  autonomy={'done': Autonomy.Off})
 
             # 交互失败日志
             sm.add('InteractionFailedLog',
                   LogState(text="通用对话系统交互失败", severity=Logger.REPORT_HINT),
                   transitions={'done': 'InteractionMode'},
-                  autonomy={'done': 0})
+                  autonomy={'done': Autonomy.Off})
 
             # 超时日志
             sm.add('TimeoutLog',
                   LogState(text="通用对话系统交互超时", severity=Logger.REPORT_HINT),
                   transitions={'done': 'InteractionMode'},
-                  autonomy={'done': 0})
+                  autonomy={'done': Autonomy.Off})
 
         return sm
 
@@ -160,7 +166,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                                       transitions={'initialized': 'InitCameraSystem',
                                                  'failed': 'interaction_failed',
                                                  'timeout': 'timeout'},
-                                      autonomy={'initialized': 0, 'failed': 0, 'timeout': 0})
+                                      autonomy={'initialized': Autonomy.Off, 'failed': Autonomy.Off, 'timeout': Autonomy.Off})
             
             # 初始化摄像头系统
             sm_detailed.add('InitCameraSystem',
@@ -171,13 +177,13 @@ class GeneralDialogueBehaviorSM(Behavior):
                                       transitions={'initialized': 'WaitForHuman',
                                                  'failed': 'interaction_failed',
                                                  'timeout': 'timeout'},
-                                      autonomy={'initialized': 0, 'failed': 0, 'timeout': 0})
+                                      autonomy={'initialized': Autonomy.Off, 'failed': Autonomy.Off, 'timeout': Autonomy.Off})
             
             # 等待检测到人（真正等待人脸检测topic）
             sm_detailed.add('WaitForHuman',
                            WaitForFaceState(face_angle_topic=face_angle_topic, timeout=30.0),
                            transitions={'detected': 'ActiveQuestioning', 'timeout': 'timeout'},
-                           autonomy={'detected': 0, 'timeout': 0})
+                           autonomy={'detected': Autonomy.Off, 'timeout': Autonomy.Off})
             
             # 主动发问
             sm_detailed.add('ActiveQuestioning',
@@ -188,7 +194,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                                       transitions={'question_asked': 'SpeechGeneration',
                                                  'service_unavailable': 'interaction_failed',
                                                  'timeout': 'timeout'},
-                                      autonomy={'question_asked': 0, 'service_unavailable': 0, 'timeout': 0},
+                                      autonomy={'question_asked': Autonomy.Off, 'service_unavailable': Autonomy.Off, 'timeout': Autonomy.Off},
                                       remapping={'llm_response': 'llm_response'})
             
             # 语音合成
@@ -200,14 +206,14 @@ class GeneralDialogueBehaviorSM(Behavior):
                                       transitions={'generated': 'WaitForUserResponse',
                                                  'not_generated': 'interaction_failed',
                                                  'timeout': 'timeout'},
-                                      autonomy={'generated': 0, 'not_generated': 0, 'timeout': 0},
+                                      autonomy={'generated': Autonomy.Off, 'not_generated': Autonomy.Off, 'timeout': Autonomy.Off},
                                       remapping={'llm_response': 'llm_response'})
             
             # 等待用户响应
             sm_detailed.add('WaitForUserResponse',
                                       LogState(text="等待用户响应...", severity=Logger.REPORT_HINT),
                                       transitions={'done': 'SpeechRecognition'},
-                                      autonomy={'done': 0})
+                                      autonomy={'done': Autonomy.Off})
             
             # 语音识别
             sm_detailed.add('SpeechRecognition',
@@ -215,7 +221,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                                       transitions={'recognized': 'LLMProcessing',
                                                  'not_recognized': 'WaitForUserResponse',
                                                  'timeout': 'timeout'},
-                                      autonomy={'recognized': 0, 'not_recognized': 0, 'timeout': 0},
+                                      autonomy={'recognized': Autonomy.Off, 'not_recognized': Autonomy.Off, 'timeout': Autonomy.Off},
                                       remapping={'recognized_text': 'recognized_text'})
             
             # LLM处理
@@ -224,7 +230,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                                       transitions={'processed': 'ResponseSpeechGeneration',
                                                  'not_processed': 'interaction_failed',
                                                  'timeout': 'timeout'},
-                                      autonomy={'processed': 0, 'not_processed': 0, 'timeout': 0},
+                                      autonomy={'processed': Autonomy.Off, 'not_processed': Autonomy.Off, 'timeout': Autonomy.Off},
                                       remapping={'recognized_text': 'recognized_text',
                                                'llm_response': 'llm_response'})
             
@@ -237,7 +243,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                                       transitions={'generated': 'ContinueInteraction',
                                                  'not_generated': 'interaction_failed',
                                                  'timeout': 'timeout'},
-                                      autonomy={'generated': 0, 'not_generated': 0, 'timeout': 0},
+                                      autonomy={'generated': Autonomy.Off, 'not_generated': Autonomy.Off, 'timeout': Autonomy.Off},
                                       remapping={'llm_response': 'llm_response'})
             
             # 继续交互决策
@@ -246,7 +252,7 @@ class GeneralDialogueBehaviorSM(Behavior):
                                                            hint="是否继续交互?", suggestion="Continue"),
                                       transitions={'Continue': 'WaitForUserResponse',
                                                   'Complete': 'interaction_complete'},
-                                      autonomy={'Continue': 0, 'Complete': 0})
+                                      autonomy={'Continue': Autonomy.Off, 'Complete': Autonomy.Off})
         
         return sm_detailed
         
@@ -269,3 +275,29 @@ class GeneralDialogueBehaviorSM(Behavior):
             self._interaction_timeout = value
             
         return True
+
+
+def main():
+    """主函数，用于直接运行行为"""
+    # 初始化ROS
+    rclpy.init()
+    
+    # 创建节点
+    node = rclpy.create_node('general_dialogue_behavior')
+    
+    # 创建行为
+    behavior = GeneralDialogueBehaviorSM(node)
+    
+    # 执行行为
+    try:
+        behavior.execute()
+    except Exception as e:
+        Logger.logerr(f'行为执行失败: {e}')
+    finally:
+        # 关闭节点
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()

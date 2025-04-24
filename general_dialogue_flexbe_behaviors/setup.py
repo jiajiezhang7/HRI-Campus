@@ -29,6 +29,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'general_dialogue_behavior = general_dialogue_flexbe_behaviors.general_dialogue_behavior_sm:main',
         ],
     },
 )

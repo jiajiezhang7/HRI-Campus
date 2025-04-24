@@ -38,25 +38,25 @@ class ActiveQuestioningState(EventState):
             outcomes=['question_asked', 'service_unavailable', 'timeout'],
             output_keys=['llm_response']
         )
-        
+
         # 存储参数
         self._active_questioning_service = active_questioning_service
         self._llm_response_topic = llm_response_topic
         self._timeout = timeout
-        
+
         # 状态标志
         self._question_asked = False
         self._llm_response = ""
-        
+
         # 初始化代理
         ProxyServiceCaller.initialize(ActiveQuestioningState._node)
         ProxySubscriberCached.initialize(ActiveQuestioningState._node)
-        
+
         # 创建服务调用者
         self._trigger_question_client = ProxyServiceCaller()
-        # 注册服务客户端 - 使用Trigger而不是Empty，因为大多数主动发问服务使用Trigger
-        self._trigger_question_client.setup_service(self._active_questioning_service, Trigger)
-        
+        # 注册服务客户端 - 使用Empty，与active_questioning_general_node中的服务类型保持一致
+        self._trigger_question_client.setup_service(self._active_questioning_service, Empty)
+
         # 创建订阅者
         self._llm_response_sub = ProxySubscriberCached()
         self._llm_response_sub.subscribe(llm_response_topic, String)
@@ -64,23 +64,23 @@ class ActiveQuestioningState(EventState):
     def execute(self, userdata):
         """
         执行状态逻辑
-        
+
         该方法会被周期性调用，直到返回一个结果
         """
         # 检查超时
         if (self._node.get_clock().now().nanoseconds - self._start_time.nanoseconds) > (self._timeout * 1e9):
             return 'timeout'
-        
+
         # 检查是否收到LLM响应
         if self._llm_response_sub.has_msg(self._llm_response_topic):
             msg = self._llm_response_sub.get_last_msg(self._llm_response_topic)
             self._llm_response_sub.remove_last_msg(self._llm_response_topic)
-            
+
             self._llm_response = msg.data
             Logger.loginfo(f'收到LLM响应: {self._llm_response}')
             userdata.llm_response = self._llm_response
             return 'question_asked'
-        
+
         # 继续等待LLM响应
         return None
 
@@ -89,19 +89,21 @@ class ActiveQuestioningState(EventState):
         当状态被激活时调用
         """
         self._start_time = self._node.get_clock().now()
-        
+
         # 重置状态标志
         self._question_asked = False
         self._llm_response = ""
-        
+
         # 调用主动发问服务
         try:
-            self._trigger_question_client.call(self._active_questioning_service, Trigger.Request())
+            # 创建空请求对象
+            request = Empty.Request()
+            self._trigger_question_client.call_async(self._active_questioning_service, request)
             Logger.loginfo('已调用主动发问服务')
         except Exception as e:
             Logger.logerr(f'调用主动发问服务失败: {str(e)}')
             return 'service_unavailable'
-        
+
         Logger.loginfo('开始主动发问')
 
     def on_exit(self, userdata):

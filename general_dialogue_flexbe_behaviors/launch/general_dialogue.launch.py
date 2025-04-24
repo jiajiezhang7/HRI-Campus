@@ -121,7 +121,7 @@ def generate_launch_description():
                 period=2.0,
                 actions=[
                     ExecuteProcess(
-                        cmd=['bash', '-c', 'google-chrome --new-window "http://127.0.0.1:8000" --window-position=0,0'],
+                        cmd=['bash', '-c', 'google-chrome --new-window "http://127.0.0.1:8000" --window-position=0,0 --user-data-dir=/tmp/chrome_profile1'],
                         name='open_flexbe_webui'
                     )
                 ]

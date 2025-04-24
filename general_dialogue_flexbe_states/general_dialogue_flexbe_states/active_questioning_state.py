@@ -8,7 +8,7 @@
 import rclpy
 from rclpy.duration import Duration
 from std_msgs.msg import String
-from std_srvs.srv import Empty
+from std_srvs.srv import Empty, Trigger
 
 from flexbe_core import EventState, Logger
 from flexbe_core.proxy import ProxyServiceCaller, ProxyPublisher, ProxySubscriberCached
@@ -54,6 +54,8 @@ class ActiveQuestioningState(EventState):
         
         # 创建服务调用者
         self._trigger_question_client = ProxyServiceCaller()
+        # 注册服务客户端 - 使用Trigger而不是Empty，因为大多数主动发问服务使用Trigger
+        self._trigger_question_client.setup_service(self._active_questioning_service, Trigger)
         
         # 创建订阅者
         self._llm_response_sub = ProxySubscriberCached()
@@ -94,7 +96,7 @@ class ActiveQuestioningState(EventState):
         
         # 调用主动发问服务
         try:
-            self._trigger_question_client.call(self._active_questioning_service, Empty)
+            self._trigger_question_client.call(self._active_questioning_service, Trigger.Request())
             Logger.loginfo('已调用主动发问服务')
         except Exception as e:
             Logger.logerr(f'调用主动发问服务失败: {str(e)}')

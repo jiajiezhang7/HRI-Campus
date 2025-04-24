@@ -20,6 +20,7 @@ from general_dialogue_flexbe_states.llm_processing_state import LLMProcessingSta
 from general_dialogue_flexbe_states.speech_generation_state import SpeechGenerationState
 from general_dialogue_flexbe_states.active_questioning_state import ActiveQuestioningState
 from general_dialogue_flexbe_states.general_dialogue_state import GeneralDialogueState
+from general_dialogue_flexbe_states.wait_for_face_state import WaitForFaceState
 
 class GeneralDialogueBehaviorSM(Behavior):
     """
@@ -172,11 +173,11 @@ class GeneralDialogueBehaviorSM(Behavior):
                                                  'timeout': 'timeout'},
                                       autonomy={'initialized': 0, 'failed': 0, 'timeout': 0})
             
-            # 等待检测到人
+            # 等待检测到人（真正等待人脸检测topic）
             sm_detailed.add('WaitForHuman',
-                                      LogState(text="等待检测到人...", severity=Logger.REPORT_HINT),
-                                      transitions={'done': 'ActiveQuestioning'},
-                                      autonomy={'done': 0})
+                           WaitForFaceState(face_angle_topic=face_angle_topic, timeout=30.0),
+                           transitions={'detected': 'ActiveQuestioning', 'timeout': 'timeout'},
+                           autonomy={'detected': 0, 'timeout': 0})
             
             # 主动发问
             sm_detailed.add('ActiveQuestioning',

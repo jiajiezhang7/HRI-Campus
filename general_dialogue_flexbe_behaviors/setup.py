@@ -15,11 +15,10 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', ['launch/general_dialogue.launch.py']),
-        (os.path.join('share', package_name, 'manifest'),
-            glob('manifest/*.xml')),
-        # 添加到lib目录下的manifest安装，解决FlexBE找不到行为清单的问题
+        # 在lib目录下只安装特定的manifest文件，避免重复状态机定义
+        # 注意：FlexBE需要在lib目录下找到manifest文件
         (os.path.join('lib', package_name, 'manifest'),
-            glob('manifest/*.xml'))
+            ['manifest/general_dialogue_behavior_sm.xml'])
     ],
     install_requires=['setuptools'],
     zip_safe=True,

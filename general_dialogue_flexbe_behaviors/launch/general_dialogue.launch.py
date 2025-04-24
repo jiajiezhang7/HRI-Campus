@@ -26,7 +26,7 @@ def generate_launch_description():
     robot_animation_display_share = FindPackageShare('robot_animation_display')
 
     # 启动文件路径
-    camera_system_launch = PathJoinSubstitution([robot_voice_launcher_share, 'launch', 'camera_system.launch.py'])
+    camera_system_launch = PathJoinSubstitution([robot_voice_launcher_share, 'launch', 'debug_camera_system.launch.py'])
     voice_system_launch = PathJoinSubstitution([robot_voice_launcher_share, 'launch', 'general_voice_system_stepfun.launch.py'])
     animation_display_launch = PathJoinSubstitution([robot_animation_display_share, 'launch', 'animation_display.launch.py'])
 
@@ -133,6 +133,16 @@ def generate_launch_description():
                 name='behavior_launcher',
                 parameters=[{'use_sim_time': use_sim_time}],
                 arguments=['-b', 'General Dialogue Behavior']
+            ),
+            # 自动发送 attach 到 Mirror，保持 UI 与 onboard 同步
+            TimerAction(
+                period=2.5,
+                actions=[
+                    ExecuteProcess(
+                        cmd=['bash', '-c', 'ros2 topic pub --once /flexbe/command/attach std_msgs/String "{data: \\"attach\\"}"'],
+                        name='auto_attach_mirror'
+                    )
+                ]
             )
         ]
     ))

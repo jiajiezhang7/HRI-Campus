@@ -17,6 +17,12 @@ def generate_launch_description():
         description='火山引擎大模型-DeepSeek-V3-ID'
     )
     
+    prompt_type_arg = DeclareLaunchArgument(
+        'prompt_type',
+        default_value='general',
+        description='System prompt type to load from YAML (e.g., general, elevator)'
+    )
+    
     # 设置环境变量
     api_key = SetEnvironmentVariable(
         name='ARK_API_KEY',
@@ -35,12 +41,15 @@ def generate_launch_description():
         name='llm_bytedance_general_node',
         output='screen',
         emulate_tty=True,
-        parameters=[]
+        parameters=[{
+            'prompt_type': LaunchConfiguration('prompt_type')
+        }]
     )
     
     # 返回LaunchDescription
     return LaunchDescription([
         model_id_arg,
+        prompt_type_arg,
         api_key,
         model_id,
         llm_bytedance_node

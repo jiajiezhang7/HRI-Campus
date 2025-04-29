@@ -7,6 +7,8 @@ from std_msgs.msg import String
 import requests
 import json
 import os
+import yaml
+from ament_index_python.packages import get_package_share_directory
 
 
 class LLMBytedanceGeneralNode(Node):
@@ -24,6 +26,11 @@ class LLMBytedanceGeneralNode(Node):
     def __init__(self):
         super().__init__('llm_bytedance_general_node')
         
+        # Declare and get the prompt_type parameter
+        self.declare_parameter('prompt_type', 'general')
+        self.prompt_type = self.get_parameter('prompt_type').get_parameter_value().string_value
+        self.get_logger().info(f'Using prompt type: {self.prompt_type}')
+
         # 获取API密钥，从环境变量获取
         self.api_key = os.environ.get('ARK_API_KEY', '')
         if not self.api_key:
@@ -33,33 +40,15 @@ class LLMBytedanceGeneralNode(Node):
         self.api_url = "https://ark.cn-beijing.volces.com/api/v3/chat/completions"
         self.model_id = os.environ.get('ARK_MODEL_ID', 'ep-20250328110625-qxn6r')
         
-        # 系统提示词，可以根据需要修改
-        self.system_prompt = """【角色设定】
-                    你是一个友好、乐于助人的校园导览机器人，名叫"瓦力/Wall-E"。你的主要任务是回答访客关于校园的问题，提供校园信息，并协助访客解决问题。
+        # 从YAML文件加载系统提示词，使用参数指定的类型
+        self.system_prompt = self._load_system_prompt_from_yaml(self.prompt_type)
+        if not self.system_prompt:
+             # Handle case where prompt loading fails, maybe use a default or raise error
+             self.get_logger().error(f'Failed to load system prompt for type "{self.prompt_type}" from YAML. Using a default prompt.')
+             # 设置一个最小化的默认提示词，以防加载失败
+             self.system_prompt = "You are a helpful assistant named Wall-E."
 
-                    【行为准则】
-                    1. 保持友好、礼貌的语气，使用简洁明了的语言
-                    2. 回答应当简短精确，避免冗长解释
-                    3. 当不确定答案时，诚实承认并提供可能的解决方案
-                    4. 语言匹配原则：始终使用与用户最近一条消息相同的语言回答。如果用户使用中文，你应该用中文回答；如果用户使用英文，你应该用英文回答。
-                    5. 不要假装你有实体形态或能够执行物理动作
 
-                    【回答格式】
-                    - 保持回答简洁，通常不超过3句话
-                    - 使用自然、对话式的语言
-                    - 不要使用markdown或其他格式标记
-                    
-                    【示例对话】
-                    用户: "图书馆在哪里？"
-                    回答: "图书馆位于校园中心区域，从这里向东走约5分钟就能到达。它是一栋白色砖墙的四层建筑。"
-                    
-                    用户: "Where is the library?"
-                    回答: "The library is located in the central area of the campus, about a 5-minute walk eastward from here. It's a four-story building with white brick walls."
-                    
-                    用户: "你能帮我拿一本书吗？"
-                    回答: "抱歉，我无法帮你拿书，因为我是一个虚拟助手。不过我可以告诉你图书馆的开放时间和借书流程，或者帮你联系图书馆工作人员获取帮助。"
-        """
-        
         # 对话历史
         self.conversation_history = []
         self.max_history_length = 10  # 最大保存的对话轮数
@@ -94,6 +83,45 @@ class LLMBytedanceGeneralNode(Node):
         
         self.get_logger().info('LLM Bytedance通用对话节点已启动')
     
+    def _load_system_prompt_from_yaml(self, prompt_type):
+        """从YAML文件中加载指定类型的系统提示词"""
+        package_share_directory = None
+        yaml_file_path = None
+        try:
+            # 获取包的共享目录路径
+            package_share_directory = get_package_share_directory('llm_bytedance')
+            # 构建YAML文件的完整路径
+            yaml_file_path = os.path.join(package_share_directory, 'config', 'system_prompts.yaml')
+            
+            self.get_logger().info(f'Loading system prompt from: {yaml_file_path}')
+
+            # 检查文件是否存在
+            if not os.path.exists(yaml_file_path):
+                self.get_logger().error(f'System prompt file not found at: {yaml_file_path}')
+                return None
+
+            # 读取并解析YAML文件
+            with open(yaml_file_path, 'r', encoding='utf-8') as file:
+                prompts = yaml.safe_load(file)
+                # 检查指定的 prompt_type 和 'prompt' 是否存在
+                if prompts and prompt_type in prompts and 'prompt' in prompts[prompt_type]:
+                    self.get_logger().info(f'Successfully loaded "{prompt_type}" system prompt from YAML.')
+                    return prompts[prompt_type]['prompt']
+                else:
+                    self.get_logger().error(f'Could not find "{prompt_type}.prompt" key structure in the YAML file.')
+                    return None
+        except FileNotFoundError:
+            # 这个错误理论上会被 os.path.exists 捕获，但保留以防万一
+            self.get_logger().error(f'System prompt file not found (FileNotFoundError). Path: {yaml_file_path}')
+            return None
+        except yaml.YAMLError as e:
+            self.get_logger().error(f'Error parsing system prompt YAML file: {e}')
+            return None
+        except Exception as e:
+            # 捕获其他潜在错误，例如权限问题
+            self.get_logger().error(f'An unexpected error occurred while loading system prompt: {e}')
+            return None
+
     def conversation_history_callback(self, msg):
         """处理接收到的对话历史消息"""
         try:

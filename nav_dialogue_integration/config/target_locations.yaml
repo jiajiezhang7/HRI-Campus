@@ -1,8 +1,8 @@
 locations:
   kitchen:
-    x: -3.895
-    y: -5.828
-    theta: 0.271
+    x: -5.718
+    y: -5.606
+    theta: -1.306
     chinese_name: "厨房"
     arrival_message: "I've brought you to the kitchen. If I'm not mistaken, there should be various vegetables on the countertop. Please check if you can find what you need."
     chinese_arrival_message: "我已经带你走到厨房了，我没记错的话，厨房台面上会有许多蔬菜，你可以看看有没有你要的？"
@@ -21,5 +21,3 @@ locations:
     arrival_message: "We've arrived at the library. Here you can find a variety of books and resources."
     chinese_arrival_message: "我们已经到达图书馆了。这里有各种各样的书籍和资源。"
 
-
-# 厨房真实位置(由AMCL中 pose_estimate得): x=-3.895, y=-5.828, theta=0.271

@@ -2,7 +2,7 @@
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch.conditions import IfCondition
@@ -14,17 +14,21 @@ def generate_launch_description():
     robot_voice_launcher_dir = get_package_share_directory('robot_voice_launcher')
     nav_dialogue_integration_dir = get_package_share_directory('nav_dialogue_integration')
     
+    # 初始位姿参数 - 只需在这里修改默认值即可全局生效
+    initial_pose_x_default = '-4.234'
+    initial_pose_y_default = '0.306'
+    initial_pose_theta_default = '2.925'
+    
     # 场景类型参数
     scene_type = LaunchConfiguration('scene_type', default='general')
     
     # 是否启动导航系统
     start_navigation = LaunchConfiguration('start_navigation', default='true')
     
-    # 初始位姿参数
-    # 起点位置 - 标定： x=-5.081, y=-0.337, theta = -1.655 
-    initial_pose_x = LaunchConfiguration('initial_pose_x', default='-5.081')
-    initial_pose_y = LaunchConfiguration('initial_pose_y', default='-0.337')
-    initial_pose_theta = LaunchConfiguration('initial_pose_theta', default='-1.655')
+    # 初始位姿参数配置
+    initial_pose_x = LaunchConfiguration('initial_pose_x', default=initial_pose_x_default)
+    initial_pose_y = LaunchConfiguration('initial_pose_y', default=initial_pose_y_default)
+    initial_pose_theta = LaunchConfiguration('initial_pose_theta', default=initial_pose_theta_default)
     
     # 配置文件路径
     locations_config = LaunchConfiguration(
@@ -42,19 +46,19 @@ def generate_launch_description():
     # 声明初始位姿参数
     declare_initial_pose_x = DeclareLaunchArgument(
         'initial_pose_x',
-        default_value='-5.081',
+        default_value=initial_pose_x_default,
         description='Initial robot pose X coordinate'
     )
     
     declare_initial_pose_y = DeclareLaunchArgument(
         'initial_pose_y',
-        default_value='-0.337',
+        default_value=initial_pose_y_default,
         description='Initial robot pose Y coordinate'
     )
     
     declare_initial_pose_theta = DeclareLaunchArgument(
         'initial_pose_theta',
-        default_value='-1.655',
+        default_value=initial_pose_theta_default,
         description='Initial robot pose theta (yaw) in radians'
     )
     
@@ -90,8 +94,17 @@ def generate_launch_description():
         ]
     )
     
+    # 设置日志级别为WARN
+    log_level_warn = SetEnvironmentVariable(
+        name='RCUTILS_LOGGING_LEVEL',
+        value='WARN'
+    )
+    
     # 将所有节点组合为一个启动描述
     return LaunchDescription([
+        # 首先设置日志级别
+        log_level_warn,
+        # 然后声明其他启动参数
         declare_start_navigation,
         declare_initial_pose_x,
         declare_initial_pose_y,

@@ -240,24 +240,81 @@ class NavDialogueBridge(Node):
             target_pose = self.target_locations[location_key]
             self.navigator.goToPose(target_pose)
             
+            # 距离阈值（米）- 如果小于此距离，认为已到达目标
+            distance_threshold = 0.5
+            
+            # 获取目标点坐标信息(用于调试输出)
+            target_x = target_pose.pose.position.x
+            target_y = target_pose.pose.position.y
+            self.get_logger().warn(f'导航目标位置: x={target_x}, y={target_y}')
+            
+            # 标记是否已经发送了提前到达消息
+            message_sent = False
+            
             # 等待导航完成
             while not self.navigator.isTaskComplete():
                 # 非阻塞检查导航状态
                 feedback = self.navigator.getFeedback()
                 if feedback:
-                    self.get_logger().info(f'剩余距离: {feedback.distance_remaining} 米')
+                    distance = feedback.distance_remaining
+                    self.get_logger().info(f'剩余距离: {distance} 米')
+                    
+                    # 获取当前位姿信息用于调试
+                    try:
+                        current_pose = self.navigator.getPose()
+                        current_x = current_pose.pose.position.x
+                        current_y = current_pose.pose.position.y
+                        euclidean_distance = math.sqrt((target_x - current_x) ** 2 + (target_y - current_y) ** 2)
+                        self.get_logger().warn(f'当前位置: x={current_x}, y={current_y}, 欧氏距离={euclidean_distance:.3f}米, 导航器路径距离={distance:.3f}米')
+                    except Exception as e:
+                        self.get_logger().warning(f'获取当前位置时出错: {str(e)}')
+                        
+                    # 如果距离小于阈值，提前输出到达消息，但继续导航
+                    if distance < distance_threshold and not message_sent:
+                        self.get_logger().warn(f'距离目标位置小于 {distance_threshold} 米，提前输出到达消息')
+                        if location_key in self.arrival_messages:
+                            response_msg = self.arrival_messages[location_key]
+                            # 发送导航完成回复
+                            self.response_pub.publish(String(data=response_msg))
+                            self.add_to_conversation_history(response_msg)
+                            message_sent = True
                 time.sleep(0.5)  # 避免CPU占用过高
             
-            # 检查导航结果
+            # 导航完成后检查导航结果
             result = self.navigator.getResult()
             
             if result == TaskResult.SUCCEEDED:
                 self.get_logger().info(f'导航到 {location_key} 成功')
-                if location_key in self.arrival_messages:
-                    response_msg = self.arrival_messages[location_key]
                 nav_success = True
+                # 如果还没有发送过消息，才发送
+                if not message_sent and location_key in self.arrival_messages:
+                    response_msg = self.arrival_messages[location_key]
             else:
                 self.get_logger().info(f'导航到 {location_key} 失败，结果: {result}')
+                
+                # 即使导航官方结果失败，我们仍检查当前位置与目标位置的距离
+                # 获取当前位姿和目标位姿
+                try:
+                    current_pose = self.navigator.getPose()
+                    target_x = target_pose.pose.position.x
+                    target_y = target_pose.pose.position.y
+                    current_x = current_pose.pose.position.x
+                    current_y = current_pose.pose.position.y
+                    
+                    # 计算欧氏距离
+                    distance = math.sqrt((target_x - current_x) ** 2 + (target_y - current_y) ** 2)
+                    self.get_logger().info(f'当前位置与目标位置的距离: {distance} 米')
+                    
+                    # 如果距离小于阈值，认为已经导航成功
+                    if distance < distance_threshold:
+                        self.get_logger().info(f'虽然导航结果为失败，但距离目标位置小于 {distance_threshold} 米，认为导航成功')
+                        nav_success = True
+                        # 如果还没有发送过消息，才发送
+                        if not message_sent and location_key in self.arrival_messages:
+                            response_msg = self.arrival_messages[location_key]
+                except Exception as e:
+                    self.get_logger().warning(f'获取当前位置时出错: {str(e)}')
+                    # 如果获取当前位置失败，继续使用原始结果
         
         except Exception as e:
             self.get_logger().error(f'导航过程中发生错误: {str(e)}')

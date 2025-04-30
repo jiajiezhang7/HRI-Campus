@@ -2,6 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
@@ -56,8 +57,12 @@ class NavDialogueBridge(Node):
         self.declare_parameter('initial_pose_y', 0.0)
         self.declare_parameter('initial_pose_theta', 0.0)
         
+        # 导航状态和资源管理
         self.navigator = None
         self.is_navigating = False
+        
+        # 使用可重入的回调组来避免死锁
+        self.callback_group = ReentrantCallbackGroup()
         
         # 导航完成后的回复消息
         self.arrival_messages = {
@@ -168,48 +173,111 @@ class NavDialogueBridge(Node):
         except Exception as e:
             self.get_logger().error(f'设置初始位姿失败: {str(e)}')
     
+    def _create_navigator(self):
+        """创建导航器对象"""
+        if self.navigator is None:
+            self.navigator = BasicNavigator()
+            
+            # 等待Nav2启动，最多等待30秒
+            start_time = time.time()
+            timeout = 30.0  # 秒
+            while time.time() - start_time < timeout:
+                try:
+                    # 非阻塞检查Nav2系统是否活动
+                    amcl_active = self.navigator.get_service_client_handle(
+                        'amcl/get_state').service_is_ready()
+                    bt_navigator_active = self.navigator.get_service_client_handle(
+                        'bt_navigator/get_state').service_is_ready()
+                    
+                    if amcl_active and bt_navigator_active:
+                        self.get_logger().info('Nav2系统已激活')
+                        return True
+                except Exception as e:
+                    self.get_logger().warning(f'检查Nav2活动状态时出错: {str(e)}')
+                
+                time.sleep(1.0)
+            
+            self.get_logger().error('Nav2系统在超时时间内未激活')
+            return False
+        return True
+    
     def navigate_to(self, location_key):
-        """导航到指定位置"""
+        """导航到指定位置的主方法，启动一个非阻塞线程执行导航"""
+        if self.is_navigating:
+            self.get_logger().warn(f'已经在进行导航，忽略到 {location_key} 的导航请求')
+            return
+        
+        # 检查目标位置是否有效
+        if location_key not in self.target_locations:
+            self.get_logger().error(f'未知的位置: {location_key}')
+            return
+            
+        # 标记导航状态
         self.is_navigating = True
         self.get_logger().info(f'开始导航到 {location_key}')
         
-        # 初始化导航器(如果尚未初始化)
-        if self.navigator is None:
-            self.navigator = BasicNavigator()
+        # 创建一个新线程执行导航任务
+        nav_thread = threading.Thread(
+            target=self._navigate_thread,
+            args=(location_key,),
+            daemon=True
+        )
+        nav_thread.start()
         
-        # 等待导航系统启动
-        self.navigator.waitUntilNav2Active()
+    def _navigate_thread(self, location_key):
+        """在单独线程中执行导航任务"""
+        response_msg = ""
+        result = TaskResult.FAILED
+        nav_success = False
         
-        # 发送导航目标
-        target_pose = self.target_locations[location_key]
-        self.navigator.goToPose(target_pose)
-        
-        # 等待导航完成
-        while not self.navigator.isTaskComplete():
-            feedback = self.navigator.getFeedback()
-            if feedback:
-                self.get_logger().info(f'剩余距离: {feedback.distance_remaining} 米')
-            time.sleep(1)
-        
-        # 检查导航结果
-        result = self.navigator.getResult()
-        
-        if result == TaskResult.SUCCEEDED:
-            self.get_logger().info(f'导航到 {location_key} 成功')
+        try:
+            # 创建导航器
+            if not self._create_navigator():
+                self.get_logger().error('创建导航器失败')
+                return
             
-            # 发送到达消息到对话历史
-            arrival_text = self.arrival_messages.get(location_key, 
-                "我已经带你到达目的地了。")
-            self.add_to_conversation_history(arrival_text)
+            # 发送导航目标
+            target_pose = self.target_locations[location_key]
+            self.navigator.goToPose(target_pose)
             
-            # 发送到达消息到TTS
-            arrival_msg = String()
-            arrival_msg.data = arrival_text
-            self.response_pub.publish(arrival_msg)
-        else:
-            self.get_logger().error(f'导航到 {location_key} 失败，结果为: {result}')
+            # 等待导航完成
+            while not self.navigator.isTaskComplete():
+                # 非阻塞检查导航状态
+                feedback = self.navigator.getFeedback()
+                if feedback:
+                    self.get_logger().info(f'剩余距离: {feedback.distance_remaining} 米')
+                time.sleep(0.5)  # 避免CPU占用过高
+            
+            # 检查导航结果
+            result = self.navigator.getResult()
+            
+            if result == TaskResult.SUCCEEDED:
+                self.get_logger().info(f'导航到 {location_key} 成功')
+                if location_key in self.arrival_messages:
+                    response_msg = self.arrival_messages[location_key]
+                nav_success = True
+            else:
+                self.get_logger().info(f'导航到 {location_key} 失败，结果: {result}')
         
-        self.is_navigating = False
+        except Exception as e:
+            self.get_logger().error(f'导航过程中发生错误: {str(e)}')
+        
+        finally:
+            # 清理导航器
+            if self.navigator:
+                # 仅关闭goalHandle而不完全摧毁导航器节点
+                try:
+                    self.navigator.cancelTask()
+                except Exception as e:
+                    self.get_logger().warning(f'取消导航任务时出错: {str(e)}')
+            
+            # 发送导航完成回复
+            if response_msg and nav_success:
+                self.response_pub.publish(String(data=response_msg))
+                self.add_to_conversation_history(response_msg)
+            
+            # 重置导航状态
+            self.is_navigating = False
 
     def add_to_conversation_history(self, text, role='assistant'):
         """将消息添加到LLM对话历史中"""

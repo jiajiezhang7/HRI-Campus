@@ -1,26 +1,33 @@
-#!/usr/bin/env python3
-
 import rclpy
 from rclpy.node import Node
-from rclpy.callback_groups import ReentrantCallbackGroup
 from std_msgs.msg import String
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
-import time
-import json
-import threading
+from rclpy.action import ActionClient # type: ignore[attr-defined]
+from rclpy.action.client import ClientGoalHandle, GoalStatus
+from rclpy.duration import Duration as rclpyDuration
 import yaml
-import os
+import threading
+import time
 import math
-from ament_index_python.packages import get_package_share_directory
+import tf_transformations
 
 class NavDialogueBridge(Node):
     def __init__(self):
         super().__init__('nav_dialogue_bridge')
         
-        # 订阅LLM响应话题，监听关键词
+        # 初始化导航器
+        self.navigator = BasicNavigator()
+        
+        # 状态变量
+        self.is_navigating = False
+        self.target_location_keyword = None # 跟踪当前导航目标关键词
+        self.current_goal_handle: ClientGoalHandle | None = None # 跟踪当前的 goal handle
+        self._nav_lock = threading.Lock() # 确保导航启动的原子性
+
+        # 订阅来自LLM的响应
         self.llm_sub = self.create_subscription(
-            String, 
+            String,
             '/llm_response',
             self.llm_callback,
             10
@@ -29,332 +36,297 @@ class NavDialogueBridge(Node):
         # 创建发布者，用于发送导航完成后的响应消息
         self.response_pub = self.create_publisher(
             String,
-            '/llm_response',
+            '/llm_response', # Use a different topic to avoid loops
             10
         )
         
-        # 创建发布者，用于发送对话历史
-        self.history_pub = self.create_publisher(
-            String,
-            '/llm_conversation_history',
-            10
-        )
+        # 创建发布者，用于发送对话历史 (If needed, maybe rename topic)
+        # self.history_pub = self.create_publisher(
+        #     String,
+        #     '/llm_conversation_history_navi', # Example rename
+        #     10
+        # )
         
-        # 预设目标位置（需要根据实际环境配置）
+        # 预设目标位置（会被配置文件覆盖）
         self.target_locations = {
-            "kitchen": self.create_pose(1.0, 2.0, 0.0),  # 示例坐标，需要替换为实际坐标
-            "厨房": self.create_pose(1.0, 2.0, 0.0)      # 与kitchen相同的坐标
+            "kitchen": self.create_pose(1.0, 2.0, 0.0),
+            "厨房": self.create_pose(1.0, 2.0, 0.0)
         }
-        
+        # 到达消息
+        self.arrival_messages = {
+            "kitchen": "我已经到达厨房。",
+            "厨房": "我已经到达厨房。"
+        }
+
         # 尝试加载配置文件
         self.declare_parameter('locations_config', '')
         config_file = self.get_parameter('locations_config').get_parameter_value().string_value
         if config_file:
             self.load_locations(config_file)
-        
-        # 添加初始位姿参数
+        else:
+            self.get_logger().warn('No locations_config parameter specified. Using default locations.')
+
+        # 添加初始位姿参数 (Ensure navigator uses it or set it manually)
         self.declare_parameter('initial_pose_x', 0.0)
         self.declare_parameter('initial_pose_y', 0.0)
         self.declare_parameter('initial_pose_theta', 0.0)
         
-        # 导航状态和资源管理
-        self.navigator = None
-        self.is_navigating = False
+        # Wait for Nav2 services
+        self.get_logger().info("Waiting for Nav2...")
+        # You might need to adjust navigator names based on your setup
+        # Example: navigator='bt_navigator', localizer='amcl'
+        self.navigator.waitUntilNav2Active() 
+        self.get_logger().info("Nav2 is active.")
         
-        # 使用可重入的回调组来避免死锁
-        self.callback_group = ReentrantCallbackGroup()
-        
-        # 导航完成后的回复消息
-        self.arrival_messages = {
-            "kitchen": "I've brought you to the kitchen. If I'm not mistaken, there should be various vegetables on the countertop. Please check if you can find what you need.",
-            "厨房": "我已经带你走到厨房了，我没记错的话，厨房台面上会有许多蔬菜，你可以看看有没有你要的？"
-        }
-        
-        # 创建定时器，延迟设置初始位姿
-        self.set_initial_pose_timer = self.create_timer(2.0, self.set_initial_pose_callback)
-        
-        self.get_logger().info('Nav Dialogue Bridge节点已初始化')
-    
-    def load_locations(self, config_file):
-        """从YAML配置文件加载位置信息"""
+        # Set initial pose if desired (Example)
+        initial_x = self.get_parameter('initial_pose_x').get_parameter_value().double_value
+        initial_y = self.get_parameter('initial_pose_y').get_parameter_value().double_value
+        initial_theta = self.get_parameter('initial_pose_theta').get_parameter_value().double_value
+        initial_pose = self.create_pose(initial_x, initial_y, initial_theta)
+        self.navigator.setInitialPose(initial_pose)
+        self.get_logger().info(f"Set initial pose to: x={initial_x}, y={initial_y}, theta={initial_theta}")
+
+        # 订阅取消导航指令
+        self.cancel_sub = self.create_subscription(
+            String,
+            '/cancel_navigation',
+            self.cancel_navigation_callback,
+            10
+        )
+
+        self.get_logger().info('NavDialogueBridge node started.')
+
+    def load_locations(self, file_path):
         try:
-            # 检查是否是相对路径
-            if not os.path.isabs(config_file):
-                package_dir = get_package_share_directory('nav_dialogue_integration')
-                config_file = os.path.join(package_dir, config_file)
-            
-            with open(config_file, 'r') as file:
-                config = yaml.safe_load(file)
-                locations = config.get('locations', {})
+            with open(file_path, 'r') as f:
+                config = yaml.safe_load(f)
+                if not config:
+                    self.get_logger().warn(f"Config file {file_path} is empty.")
+                    return
+
+                loaded_locations = {}
+                loaded_messages = {}
+                for key, value in config.items():
+                    if isinstance(value, dict) and 'pose' in value and 'arrival_message' in value:
+                        pose_data = value['pose']
+                        if isinstance(pose_data, list) and len(pose_data) == 3:
+                            pose = self.create_pose(pose_data[0], pose_data[1], pose_data[2])
+                            loaded_locations[key] = pose
+                            loaded_messages[key] = value['arrival_message']
+                            self.get_logger().info(f"Loaded location '{key}': Pose({pose_data}), Message: '{value['arrival_message']}'")
+                        else:
+                           self.get_logger().warn(f"Invalid pose format for key '{key}' in {file_path}. Expected [x, y, theta]. Skipping.")
+                    else:
+                         self.get_logger().warn(f"Invalid structure for key '{key}' in {file_path}. Expected 'pose' and 'arrival_message'. Skipping.")
                 
-                for name, pose_data in locations.items():
-                    self.target_locations[name] = self.create_pose(
-                        pose_data.get('x', 0.0),
-                        pose_data.get('y', 0.0),
-                        pose_data.get('theta', 0.0)
-                    )
-                    
-                    # 如果有中文名称，也添加对应项
-                    if 'chinese_name' in pose_data:
-                        chinese_name = pose_data['chinese_name']
-                        self.target_locations[chinese_name] = self.target_locations[name]
-                        
-                        # 如果有到达消息，也一并添加
-                        if 'arrival_message' in pose_data:
-                            self.arrival_messages[name] = pose_data['arrival_message']
-                        if 'chinese_arrival_message' in pose_data:
-                            self.arrival_messages[chinese_name] = pose_data['chinese_arrival_message']
-                
-            self.get_logger().info(f'成功从{config_file}加载了{len(locations)}个位置配置')
+                if loaded_locations:
+                    self.target_locations = loaded_locations
+                    self.arrival_messages = loaded_messages
+                    self.get_logger().info(f"Successfully loaded locations and messages from {file_path}")
+                else:
+                     self.get_logger().warn(f"No valid locations found in {file_path}. Using defaults.")
+
+        except FileNotFoundError:
+            self.get_logger().error(f"Location configuration file not found: {file_path}")
+        except yaml.YAMLError as e:
+            self.get_logger().error(f"Error parsing YAML file {file_path}: {e}")
         except Exception as e:
-            self.get_logger().error(f'加载位置配置文件失败: {str(e)}')
-    
-    def create_pose(self, x, y, theta):
-        """创建一个PoseStamped消息"""
+            self.get_logger().error(f"An unexpected error occurred while loading locations: {e}")
+
+
+    def create_pose(self, x, y, theta_degrees):
         pose = PoseStamped()
-        pose.header.frame_id = 'map'
-        pose.header.stamp = self.get_clock().now().to_msg()
+        pose.header.frame_id = 'map'  # Or your relevant frame
+        pose.header.stamp = self.navigator.get_clock().now().to_msg()
         pose.pose.position.x = x
         pose.pose.position.y = y
-        pose.pose.position.z = 0.0
-        pose.pose.orientation.x = 0.0
-        pose.pose.orientation.y = 0.0
-        pose.pose.orientation.z = 0.0
-        pose.pose.orientation.w = 1.0
-        return pose
-    
-    def llm_callback(self, msg):
-        """处理LLM响应，检测关键词并触发导航"""
-        if self.is_navigating:
-            return
-            
-        response_text = msg.data
-        self.get_logger().info(f'收到LLM响应: {response_text}')
-        
-        # 检查是否包含关键词
-        for keyword in self.target_locations.keys():
-            if keyword in response_text:
-                self.get_logger().info(f'检测到关键词: {keyword}')
-                
-                # 在新线程中启动导航，避免阻塞回调
-                nav_thread = threading.Thread(target=self.navigate_to, args=(keyword,))
-                nav_thread.start()
-                break
-    
-    def set_initial_pose_callback(self):
-        """延迟设置初始位姿，确保导航系统已启动"""
-        try:
-            if self.navigator is None:
-                self.navigator = BasicNavigator()
-                
-            # 等待导航系统启动
-            self.navigator.waitUntilNav2Active()
-                
-            x = self.get_parameter('initial_pose_x').get_parameter_value().double_value
-            y = self.get_parameter('initial_pose_y').get_parameter_value().double_value
-            theta = self.get_parameter('initial_pose_theta').get_parameter_value().double_value
-            
-            initial_pose = PoseStamped()
-            initial_pose.header.frame_id = 'map'
-            initial_pose.header.stamp = self.get_clock().now().to_msg()
-            initial_pose.pose.position.x = x
-            initial_pose.pose.position.y = y
-            initial_pose.pose.position.z = 0.0
-            
-            # 设置方向四元数
-            initial_pose.pose.orientation.w = math.cos(theta/2)
-            initial_pose.pose.orientation.z = math.sin(theta/2)
-            
-            self.navigator.setInitialPose(initial_pose)
-            self.get_logger().info(f'设置初始位姿: x={x}, y={y}, theta={theta}')
-            
-            # 只设置一次，然后取消定时器
-            self.set_initial_pose_timer.cancel()
-        except Exception as e:
-            self.get_logger().error(f'设置初始位姿失败: {str(e)}')
-    
-    def _create_navigator(self):
-        """创建导航器对象"""
-        if self.navigator is None:
-            self.navigator = BasicNavigator()
-            
-            # 等待Nav2启动，最多等待30秒
-            start_time = time.time()
-            timeout = 30.0  # 秒
-            while time.time() - start_time < timeout:
-                try:
-                    # 非阻塞检查Nav2系统是否活动
-                    amcl_active = self.navigator.get_service_client_handle(
-                        'amcl/get_state').service_is_ready()
-                    bt_navigator_active = self.navigator.get_service_client_handle(
-                        'bt_navigator/get_state').service_is_ready()
-                    
-                    if amcl_active and bt_navigator_active:
-                        self.get_logger().info('Nav2系统已激活')
-                        return True
-                except Exception as e:
-                    self.get_logger().warning(f'检查Nav2活动状态时出错: {str(e)}')
-                
-                time.sleep(1.0)
-            
-            self.get_logger().error('Nav2系统在超时时间内未激活')
-            return False
-        return True
-    
-    def navigate_to(self, location_key):
-        """导航到指定位置的主方法，启动一个非阻塞线程执行导航"""
-        if self.is_navigating:
-            self.get_logger().warn(f'已经在进行导航，忽略到 {location_key} 的导航请求')
-            return
-        
-        # 检查目标位置是否有效
-        if location_key not in self.target_locations:
-            self.get_logger().error(f'未知的位置: {location_key}')
-            return
-            
-        # 标记导航状态
-        self.is_navigating = True
-        self.get_logger().info(f'开始导航到 {location_key}')
-        
-        # 创建一个新线程执行导航任务
-        nav_thread = threading.Thread(
-            target=self._navigate_thread,
-            args=(location_key,),
-            daemon=True
-        )
-        nav_thread.start()
-        
-    def _navigate_thread(self, location_key):
-        """在单独线程中执行导航任务"""
-        response_msg = ""
-        result = TaskResult.FAILED
-        nav_success = False
-        
-        try:
-            # 创建导航器
-            if not self._create_navigator():
-                self.get_logger().error('创建导航器失败')
-                return
-            
-            # 发送导航目标
-            target_pose = self.target_locations[location_key]
-            self.navigator.goToPose(target_pose)
-            
-            # 距离阈值（米）- 如果小于此距离，认为已到达目标
-            distance_threshold = 0.5
-            
-            # 获取目标点坐标信息(用于调试输出)
-            target_x = target_pose.pose.position.x
-            target_y = target_pose.pose.position.y
-            self.get_logger().warn(f'导航目标位置: x={target_x}, y={target_y}')
-            
-            # 标记是否已经发送了提前到达消息
-            message_sent = False
-            
-            # 等待导航完成
-            while not self.navigator.isTaskComplete():
-                # 非阻塞检查导航状态
-                feedback = self.navigator.getFeedback()
-                if feedback:
-                    distance = feedback.distance_remaining
-                    self.get_logger().info(f'剩余距离: {distance} 米')
-                    
-                    # 获取当前位姿信息用于调试
-                    try:
-                        current_pose = self.navigator.getPose()
-                        current_x = current_pose.pose.position.x
-                        current_y = current_pose.pose.position.y
-                        euclidean_distance = math.sqrt((target_x - current_x) ** 2 + (target_y - current_y) ** 2)
-                        self.get_logger().warn(f'当前位置: x={current_x}, y={current_y}, 欧氏距离={euclidean_distance:.3f}米, 导航器路径距离={distance:.3f}米')
-                    except Exception as e:
-                        self.get_logger().warning(f'获取当前位置时出错: {str(e)}')
-                        
-                    # 如果距离小于阈值，提前输出到达消息，但继续导航
-                    if distance < distance_threshold and not message_sent:
-                        self.get_logger().warn(f'距离目标位置小于 {distance_threshold} 米，提前输出到达消息')
-                        if location_key in self.arrival_messages:
-                            response_msg = self.arrival_messages[location_key]
-                            # 发送导航完成回复
-                            self.response_pub.publish(String(data=response_msg))
-                            self.add_to_conversation_history(response_msg)
-                            message_sent = True
-                time.sleep(0.5)  # 避免CPU占用过高
-            
-            # 导航完成后检查导航结果
-            result = self.navigator.getResult()
-            
-            if result == TaskResult.SUCCEEDED:
-                self.get_logger().info(f'导航到 {location_key} 成功')
-                nav_success = True
-                # 如果还没有发送过消息，才发送
-                if not message_sent and location_key in self.arrival_messages:
-                    response_msg = self.arrival_messages[location_key]
-            else:
-                self.get_logger().info(f'导航到 {location_key} 失败，结果: {result}')
-                
-                # 即使导航官方结果失败，我们仍检查当前位置与目标位置的距离
-                # 获取当前位姿和目标位姿
-                try:
-                    current_pose = self.navigator.getPose()
-                    target_x = target_pose.pose.position.x
-                    target_y = target_pose.pose.position.y
-                    current_x = current_pose.pose.position.x
-                    current_y = current_pose.pose.position.y
-                    
-                    # 计算欧氏距离
-                    distance = math.sqrt((target_x - current_x) ** 2 + (target_y - current_y) ** 2)
-                    self.get_logger().info(f'当前位置与目标位置的距离: {distance} 米')
-                    
-                    # 如果距离小于阈值，认为已经导航成功
-                    if distance < distance_threshold:
-                        self.get_logger().info(f'虽然导航结果为失败，但距离目标位置小于 {distance_threshold} 米，认为导航成功')
-                        nav_success = True
-                        # 如果还没有发送过消息，才发送
-                        if not message_sent and location_key in self.arrival_messages:
-                            response_msg = self.arrival_messages[location_key]
-                except Exception as e:
-                    self.get_logger().warning(f'获取当前位置时出错: {str(e)}')
-                    # 如果获取当前位置失败，继续使用原始结果
-        
-        except Exception as e:
-            self.get_logger().error(f'导航过程中发生错误: {str(e)}')
-        
-        finally:
-            # 清理导航器
-            if self.navigator:
-                # 仅关闭goalHandle而不完全摧毁导航器节点
-                try:
-                    self.navigator.cancelTask()
-                except Exception as e:
-                    self.get_logger().warning(f'取消导航任务时出错: {str(e)}')
-            
-            # 发送导航完成回复
-            if response_msg and nav_success:
-                self.response_pub.publish(String(data=response_msg))
-                self.add_to_conversation_history(response_msg)
-            
-            # 重置导航状态
-            self.is_navigating = False
+        pose.pose.position.z = 0.0  # Assuming 2D navigation
 
-    def add_to_conversation_history(self, text, role='assistant'):
-        """将消息添加到LLM对话历史中"""
-        message = {
-            "role": role, 
-            "content": text
-        }
-        history_msg = String()
-        history_msg.data = json.dumps(message)
+        # Convert degrees to radians for quaternion
+        theta_rad = math.radians(theta_degrees)
+        q = tf_transformations.quaternion_from_euler(0, 0, theta_rad)
+        pose.pose.orientation.x = q[0]
+        pose.pose.orientation.y = q[1]
+        pose.pose.orientation.z = q[2]
+        pose.pose.orientation.w = q[3]
+        return pose
+
+    def llm_callback(self, msg):
+        response_text = msg.data.lower() # Convert to lower case for case-insensitive matching
+        self.get_logger().info(f"Received LLM response: '{response_text}'")
+
+        found_keyword = None
+        for keyword in self.target_locations.keys():
+             # Use lower case for comparison
+            if keyword.lower() in response_text:
+                found_keyword = keyword
+                break # Take the first match
+
+        if found_keyword:
+            # Use a lock to prevent race conditions when checking/setting is_navigating
+            with self._nav_lock:
+                if self.is_navigating:
+                    self.get_logger().warn(f"Navigation already in progress to '{self.target_location_keyword}'. Ignoring request for '{found_keyword}'.")
+                    # Optionally publish a message indicating busy status
+                    # self.response_pub.publish(String(data="我正在导航中，请稍后再试。"))
+                    return
+
+                # Set state *before* starting the thread/async call
+                self.is_navigating = True
+                self.target_location_keyword = found_keyword
+                self.get_logger().info(f"Keyword '{found_keyword}' detected. Initiating navigation.")
+                
+                # --- Start Navigation Asynchronously ---
+                target_pose = self.target_locations[found_keyword]
+                self.navigator.clearTaskError() # Clear previous errors
+
+                # Send the goal asynchronously, providing the feedback callback
+                send_goal_future = self.navigator.nav_to_pose_client.send_goal_async(
+                    NavigateToPose.Goal(pose=target_pose),
+                    feedback_callback=self._nav_feedback_callback
+                )
+                
+                # Add a callback to handle goal acceptance/rejection
+                send_goal_future.add_done_callback(self._goal_accepted_callback)
+        else:
+            self.get_logger().debug(f"No navigation keywords found in '{response_text}'")
+
+
+    def _goal_accepted_callback(self, future):
+        """Callback executed when the goal server accepts/rejects the goal."""
+        goal_handle = future.result()
+        if not goal_handle:
+            self.get_logger().error('Internal error getting goal handle')
+            self.reset_navigation_state()
+            return
+            
+        self.current_goal_handle = goal_handle # Store the handle
+
+        if not goal_handle.accepted:
+            self.get_logger().error(f"Goal for '{self.target_location_keyword}' was rejected by the server.")
+            self.reset_navigation_state()
+            # Publish failure message?
+            self.response_pub.publish(String(data=f"无法启动导航至 {self.target_location_keyword}，目标被拒绝。"))
+            return
+
+        self.get_logger().info(f"Goal accepted for '{self.target_location_keyword}'. Navigation started.")
         
-        # 发布到对话历史话题
-        self.history_pub.publish(history_msg)
-        self.get_logger().info(f'已添加消息到对话历史: {text}')
+        # Goal accepted, now get the future for the final result
+        result_future = goal_handle.get_result_async()
+        result_future.add_done_callback(self._get_result_callback)
+
+
+    def _nav_feedback_callback(self, feedback_msg):
+        """Callback to receive navigation feedback."""
+        feedback = feedback_msg.feedback
+        # Log feedback periodically, maybe not every time to avoid spam
+        # Example: Log distance remaining
+        if feedback and hasattr(feedback, 'distance_remaining'):
+             self.get_logger().debug(f"Feedback: Distance remaining: {feedback.distance_remaining:.2f}m")
+        # Add other feedback processing here if needed
+        # IMPORTANT: Don't publish arrival messages here, do it in the result callback
+
+
+    def _get_result_callback(self, future):
+        """Callback executed when the navigation action completes."""
+        result_response = future.result()
+        status = result_response.status
+        result = result_response.result # The actual result message (e.g., NavigateToPose.Result)
+
+        if status == GoalStatus.STATUS_SUCCEEDED:
+            self.get_logger().info(f"Navigation to '{self.target_location_keyword}' succeeded!")
+            # Publish arrival message
+            response_msg = self.arrival_messages.get(self.target_location_keyword)
+            if response_msg:
+                self.response_pub.publish(String(data=response_msg))
+                self.get_logger().info(f"Published arrival message for {self.target_location_keyword}: '{response_msg}'")
+            else:
+                self.get_logger().warn(f"No arrival message defined for successful keyword: '{self.target_location_keyword}'")
+
+        elif status == GoalStatus.STATUS_ABORTED:
+            error_code = result.error_code if hasattr(result, 'error_code') else 'N/A'
+            error_msg = result.error_msg if hasattr(result, 'error_msg') else 'No message'
+            self.get_logger().error(f"Navigation to '{self.target_location_keyword}' failed (Aborted). Code: {error_code}, Msg: {error_msg}")
+            self.response_pub.publish(String(data=f"导航至 {self.target_location_keyword} 失败了。"))
+
+        elif status == GoalStatus.STATUS_CANCELED:
+            self.get_logger().info(f"Navigation to '{self.target_location_keyword}' was canceled.")
+            # Optional: Publish cancellation confirmation
+            self.response_pub.publish(String(data=f"已取消导航至 {self.target_location_keyword}。"))
+
+        else:
+            self.get_logger().warn(f"Navigation to '{self.target_location_keyword}' finished with unknown status: {status}")
+            self.response_pub.publish(String(data=f"导航至 {self.target_location_keyword} 状态未知。"))
+
+        # Reset navigation state regardless of outcome
+        self.reset_navigation_state()
+
+
+    def cancel_navigation_callback(self, msg):
+        """Callback to handle external cancellation requests."""
+        command = msg.data.lower()
+        if command == "cancel":
+            self.get_logger().info("Received cancellation request.")
+            self.cancel_current_navigation()
+        else:
+            self.get_logger().warn(f"Received unknown command on /cancel_navigation: {command}")
+
+
+    def cancel_current_navigation(self):
+         """Initiates cancellation of the current navigation task."""
+         with self._nav_lock:
+            if self.is_navigating and self.current_goal_handle:
+                self.get_logger().info(f"Attempting to cancel navigation to '{self.target_location_keyword}'...")
+                cancel_future = self.current_goal_handle.cancel_goal_async()
+                # Add a callback to confirm cancellation (optional but good practice)
+                cancel_future.add_done_callback(self._cancel_done_callback)
+            elif self.is_navigating:
+                 self.get_logger().warn("Cancellation requested, but goal handle is missing.")
+                 # Reset state anyway?
+                 self.reset_navigation_state() 
+            else:
+                self.get_logger().info("No active navigation to cancel.")
+
+
+    def _cancel_done_callback(self, future):
+        """Callback executed when the cancellation request is processed."""
+        cancel_response = future.result()
+        if cancel_response:
+             if len(cancel_response.goals_canceling) > 0:
+                 self.get_logger().info("Cancellation request accepted.")
+                 # The final status (CANCELED) will be handled by _get_result_callback
+             else:
+                 self.get_logger().warn("Cancellation request processed, but no goals were marked for cancellation (task might have already finished).")
+                 # If the task finished before cancellation was processed, reset state might be needed here
+                 # depending on whether _get_result_callback was already called.
+                 # Check self.is_navigating here if necessary.
+        else:
+            self.get_logger().error("Failed to process cancellation request.")
+            # Consider resetting state here too as a fallback
+            self.reset_navigation_state()
+
+
+    def reset_navigation_state(self):
+        """Resets the navigation-related state variables."""
+        with self._nav_lock: # Ensure atomicity
+            self.is_navigating = False
+            self.target_location_keyword = None
+            self.current_goal_handle = None
+        self.get_logger().debug("Navigation state reset.")
+
 
 def main(args=None):
     rclpy.init(args=args)
     node = NavDialogueBridge()
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info('Keyboard interrupt received, shutting down.')
+    finally:
+        # Clean up resources
+        node.navigator.destroyNode() # Use the navigator's cleanup
+        node.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

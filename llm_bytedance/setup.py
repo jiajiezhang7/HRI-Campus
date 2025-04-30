@@ -15,7 +15,7 @@ setup(
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
     ],
-    install_requires=['setuptools', 'requests', 'PyYAML'],
+    install_requires=['setuptools', 'requests', 'PyYAML', 'langchain>=0.0.267'],
     zip_safe=True,
     maintainer='jay',
     maintainer_email='jerryzhang7@126.com',
@@ -27,6 +27,7 @@ setup(
     entry_points={
         'console_scripts': [
             'llm_bytedance_general_node = llm_bytedance.llm_bytedance_general_node:main',
+            'llm_bytedance_langchain_node = llm_bytedance.llm_bytedance_langchain_node:main',
         ],
     },
 )

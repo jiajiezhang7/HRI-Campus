@@ -13,8 +13,10 @@ from launch import LaunchDescription
 from launch.actions import (
     IncludeLaunchDescription,
     TimerAction,
-    DeclareLaunchArgument
+    DeclareLaunchArgument,
+    GroupAction
 )
+from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 from launch.substitutions import PathJoinSubstitution, LaunchConfiguration
@@ -41,6 +43,13 @@ def generate_launch_description():
         'silence_threshold',
         default_value='50',
         description='Threshold for silence detection in speech recognition'
+    )
+    
+    # 声明LLM类型参数，用于选择使用原始LLM节点还是LangChain节点
+    use_langchain_arg = DeclareLaunchArgument(
+        'use_langchain',
+        default_value='true',
+        description='使用LangChain节点(true)还是原始LLM节点(false)'
     )
 
     # 查找各个包的路径
@@ -71,11 +80,20 @@ def generate_launch_description():
         }.items()
     )
 
-    # 使用通用对话系统LLM启动文件
+    # 使用原始LLM节点的启动文件
     llm_bytedance_general = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([
             PathJoinSubstitution([llm_bytedance_pkg_dir, 'launch', 'llm_bytedance_general.launch.py'])
-        ])
+        ]),
+        condition=UnlessCondition(LaunchConfiguration('use_langchain'))
+    )
+    
+    # 使用LangChain节点的启动文件
+    llm_langchain = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([llm_bytedance_pkg_dir, 'launch', 'langchain_node.launch.py'])
+        ]),
+        condition=IfCondition(LaunchConfiguration('use_langchain'))
     )
 
     # 语音合成启动文件（使用阶跃星辰API）
@@ -126,6 +144,7 @@ def generate_launch_description():
         enable_filter_arg,
         cutoff_frequency_arg,
         silence_threshold_arg,
+        use_langchain_arg,
 
         # 麦克风捕获节点
         mic_capture_launch,
@@ -136,10 +155,10 @@ def generate_launch_description():
             actions=[speech_recognition_launch]
         ),
 
-        # 等待0.8秒后启动通用对话系统LLM
+        # 等待0.8秒后启动通用对话系统LLM（根据参数选择原始或LangChain节点）
         TimerAction(
             period=0.8,
-            actions=[llm_bytedance_general]
+            actions=[llm_bytedance_general, llm_langchain]
         ),
 
         # 等待1.0秒后启动语音合成

@@ -21,9 +21,10 @@ def generate_launch_description():
     start_navigation = LaunchConfiguration('start_navigation', default='true')
     
     # 初始位姿参数
-    initial_pose_x = LaunchConfiguration('initial_pose_x', default='0.0')
-    initial_pose_y = LaunchConfiguration('initial_pose_y', default='0.0')
-    initial_pose_theta = LaunchConfiguration('initial_pose_theta', default='0.0')
+    # 起点位置 - 标定： x=-5.081, y=-0.337, theta = -1.655 
+    initial_pose_x = LaunchConfiguration('initial_pose_x', default='-5.081')
+    initial_pose_y = LaunchConfiguration('initial_pose_y', default='-0.337')
+    initial_pose_theta = LaunchConfiguration('initial_pose_theta', default='-1.655')
     
     # 配置文件路径
     locations_config = LaunchConfiguration(
@@ -41,19 +42,19 @@ def generate_launch_description():
     # 声明初始位姿参数
     declare_initial_pose_x = DeclareLaunchArgument(
         'initial_pose_x',
-        default_value='0.0',
+        default_value='-5.081',
         description='Initial robot pose X coordinate'
     )
     
     declare_initial_pose_y = DeclareLaunchArgument(
         'initial_pose_y',
-        default_value='0.0',
+        default_value='-0.337',
         description='Initial robot pose Y coordinate'
     )
     
     declare_initial_pose_theta = DeclareLaunchArgument(
         'initial_pose_theta',
-        default_value='0.0',
+        default_value='-1.655',
         description='Initial robot pose theta (yaw) in radians'
     )
     
